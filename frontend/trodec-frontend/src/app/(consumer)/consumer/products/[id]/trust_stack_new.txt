@@ -1,0 +1,30 @@
+             {/* Compact Trust Stack */}
+             <div className="pt-8 mt-4 border-t border-white/10 grid grid-cols-1 gap-5">
+               <div className="flex items-center gap-4 group/trust">
+                  <div className="w-10 h-10 rounded-xl bg-[#0f0f10] border border-white/10 flex items-center justify-center text-gray-600 group/trust:text-white transition-colors duration-500">
+                    <Truck className="w-5 h-5" />
+                  </div>
+                  <div>
+                     <p className="text-xs font-black uppercase tracking-widest text-white">Free Express Shipping</p>
+                     <p className="text-[10px] font-bold text-gray-500 mt-0.5">Global delivery within 3-5 days</p>
+                  </div>
+               </div>
+               <div className="flex items-center gap-4 group/trust">
+                  <div className="w-10 h-10 rounded-xl bg-[#0f0f10] border border-white/10 flex items-center justify-center text-gray-600 group/trust:text-white transition-colors duration-500">
+                    <RotateCcw className="w-5 h-5" />
+                  </div>
+                  <div>
+                     <p className="text-xs font-black uppercase tracking-widest text-white">7-Day Replacement</p>
+                     <p className="text-[10px] font-bold text-gray-500 mt-0.5">Authenticity guaranteed or full refund</p>
+                  </div>
+               </div>
+               <div className="flex items-center gap-4 group/trust">
+                  <div className="w-10 h-10 rounded-xl bg-[#0f0f10] border border-white/10 flex items-center justify-center text-gray-600 group/trust:text-white transition-colors duration-500">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                     <p className="text-xs font-black uppercase tracking-widest text-white">2 Year Warranty</p>
+                     <p className="text-[10px] font-bold text-gray-500 mt-0.5">Official manufacturer support</p>
+                  </div>
+               </div>
+             </div>

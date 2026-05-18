@@ -1,0 +1,216 @@
+import { useState, useEffect } from 'react';
+import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import {
+  AuthUser,
+  Profile,
+  ExpertDetails,
+  BrandDetails,
+  UserWithProfile,
+  signIn as apiSignIn,
+  signUp as apiSignUp,
+  signOut as apiSignOut,
+  getCurrentUser,
+  SignInData,
+  SignUpData,
+} from '@/services/auth.service';
+
+// ============================================
+// Types
+// ============================================
+
+interface AuthState {
+  // State
+  user: AuthUser | null;
+  profile: Profile | null;
+  expertDetails: ExpertDetails | null;
+  brandDetails: BrandDetails | null;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  error: string | null;
+
+  // Actions
+  signIn: (data: SignInData) => Promise<void>;
+  signUp: (data: SignUpData) => Promise<void>;
+  signOut: () => Promise<void>;
+  fetchCurrentUser: () => Promise<void>;
+  setUser: (user: UserWithProfile) => void;
+  clearError: () => void;
+  reset: () => void;
+}
+
+// ============================================
+// Initial State
+// ============================================
+
+const initialState = {
+  user: null,
+  profile: null,
+  expertDetails: null,
+  brandDetails: null,
+  isLoading: false,
+  isAuthenticated: false,
+  error: null,
+};
+
+// ============================================
+// Store
+// ============================================
+
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set, get) => ({
+      ...initialState,
+
+      signIn: async (data: SignInData) => {
+        set({ isLoading: true, error: null });
+        try {
+          const result = await apiSignIn(data);
+          set({
+            user: result.user,
+            profile: result.profile,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+
+          // Fetch full profile with role details
+          await get().fetchCurrentUser();
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Sign in failed',
+            isLoading: false,
+          });
+          throw error;
+        }
+      },
+
+      signUp: async (data: SignUpData) => {
+        set({ isLoading: true, error: null });
+        try {
+          const result = await apiSignUp(data);
+
+          // If no session returned, automatically sign in
+          if (!result.session) {
+            // Sign in with the same credentials
+            await get().signIn({
+              email: data.email,
+              password: data.password,
+            });
+          } else {
+            set({
+              user: result.user,
+              profile: result.profile,
+              isAuthenticated: true,
+              isLoading: false,
+            });
+            await get().fetchCurrentUser();
+          }
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Sign up failed',
+            isLoading: false,
+          });
+          throw error;
+        }
+      },
+
+      signOut: async () => {
+        set({ isLoading: true });
+        try {
+          await apiSignOut();
+        } finally {
+          set({
+            ...initialState,
+            isLoading: false,
+          });
+        }
+      },
+
+      fetchCurrentUser: async () => {
+        set({ isLoading: true, error: null });
+        try {
+          const userWithProfile = await getCurrentUser();
+
+          if (userWithProfile) {
+            set({
+              user: {
+                id: userWithProfile.id,
+                email: userWithProfile.email,
+                createdAt: userWithProfile.createdAt,
+              },
+              profile: userWithProfile.profile,
+              expertDetails: userWithProfile.expertDetails || null,
+              brandDetails: userWithProfile.brandDetails || null,
+              isAuthenticated: true,
+              isLoading: false,
+            });
+          } else {
+            // null = no token or definitive 401 — user is not authenticated
+            set({ ...initialState, isLoading: false });
+          }
+        } catch {
+          // Network error, timeout, or server error.
+          // Do NOT clear isAuthenticated — the session may still be valid.
+          // The user's persisted auth state is preserved; API calls will
+          // retry with the stored token and the interceptor handles refresh.
+          set({ isLoading: false });
+        }
+      },
+
+      setUser: (userWithProfile: UserWithProfile) => {
+        set({
+          user: {
+            id: userWithProfile.id,
+            email: userWithProfile.email,
+            createdAt: userWithProfile.createdAt,
+          },
+          profile: userWithProfile.profile,
+          expertDetails: userWithProfile.expertDetails || null,
+          brandDetails: userWithProfile.brandDetails || null,
+          isAuthenticated: true,
+        });
+      },
+
+      clearError: () => set({ error: null }),
+
+      reset: () => set(initialState),
+    }),
+    {
+      name: 'trodec-auth',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        // Only persist these fields
+        user: state.user,
+        profile: state.profile,
+        expertDetails: state.expertDetails,
+        brandDetails: state.brandDetails,
+        isAuthenticated: state.isAuthenticated,
+      }),
+    }
+  )
+);
+
+// ============================================
+// Selectors
+// ============================================
+
+export const selectUser = (state: AuthState) => state.user;
+export const selectProfile = (state: AuthState) => state.profile;
+export const selectIsAuthenticated = (state: AuthState) => state.isAuthenticated;
+export const selectIsLoading = (state: AuthState) => state.isLoading;
+export const selectError = (state: AuthState) => state.error;
+export const selectUserRole = (state: AuthState) => state.profile?.role;
+
+// Returns true once Zustand has finished loading persisted state from localStorage.
+// Use this before checking isAuthenticated on page load to avoid hydration race conditions.
+export function useAuthHydrated(): boolean {
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    if (useAuthStore.persist.hasHydrated()) {
+      setHydrated(true);
+      return;
+    }
+    return useAuthStore.persist.onFinishHydration(() => setHydrated(true));
+  }, []);
+  return hydrated;
+}
