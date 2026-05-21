@@ -16,13 +16,22 @@ export const api = axios.create({
   timeout: 30000,
 });
 
+// Public auth endpoints that must NOT include a Bearer token.
+// Sending a stale token on these routes can cause the production API/nginx
+// to return 400 before the handler even runs.
+const PUBLIC_AUTH_PATHS = ['/auth/login', '/auth/signup', '/auth/refresh', '/auth/google', '/auth/oauth/complete'];
+
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('accessToken');
-      if (token && config.headers) {
-        config.headers.Authorization = `Bearer ${token}`;
+      const url = config.url ?? '';
+      const isPublicAuth = PUBLIC_AUTH_PATHS.some((p) => url.endsWith(p));
+      if (!isPublicAuth) {
+        const token = localStorage.getItem('accessToken');
+        if (token && config.headers) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
       }
     }
     return config;

@@ -72,9 +72,8 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             isLoading: false,
           });
-
-          // Fetch full profile with role details
-          await get().fetchCurrentUser();
+          // Role-specific details (expertDetails, brandDetails) are loaded by
+          // each dashboard layout on first render via fetchCurrentUser.
         } catch (error) {
           set({
             error: error instanceof Error ? error.message : 'Sign in failed',

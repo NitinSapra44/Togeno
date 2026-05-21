@@ -20,6 +20,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Trodec",
   description: "Expert-led community commerce — trusted recommendations, community-driven buying decisions, trust before commerce.",
+  icons: {
+    icon: [{ url: "/Logo.jpeg", type: "image/jpeg" }],
+    shortcut: "/Logo.jpeg",
+    apple: "/Logo.jpeg",
+  },
 }
 
 export default function RootLayout({

@@ -78,7 +78,15 @@ export default function ExpertLayout({
     const checkAuth = async () => {
       const token = localStorage.getItem("accessToken");
       if (!token) { router.push("/login"); return; }
-      if (useAuthStore.getState().isAuthenticated) { setIsChecking(false); return; }
+      if (useAuthStore.getState().isAuthenticated) {
+        // Fresh sign-in: expertDetails not yet loaded — fetch them now so the
+        // unverified-expert gate has the data it needs.
+        if (!useAuthStore.getState().expertDetails) {
+          await fetchCurrentUser();
+        }
+        setIsChecking(false);
+        return;
+      }
       await fetchCurrentUser();
       if (!useAuthStore.getState().isAuthenticated) { router.push("/login"); return; }
       setIsChecking(false);

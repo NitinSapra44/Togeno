@@ -69,7 +69,15 @@ export default function BrandLayout({
     const checkAuth = async () => {
       const token = localStorage.getItem("accessToken");
       if (!token) { router.push("/login?redirect=/brand/dashboard"); return; }
-      if (useAuthStore.getState().isAuthenticated) { setIsChecking(false); return; }
+      if (useAuthStore.getState().isAuthenticated) {
+        // Fresh sign-in: brandDetails not yet loaded — fetch them now so the
+        // onboarding gate and brand-specific UI have the data they need.
+        if (!useAuthStore.getState().brandDetails) {
+          await fetchCurrentUser();
+        }
+        setIsChecking(false);
+        return;
+      }
       await fetchCurrentUser();
       if (!useAuthStore.getState().isAuthenticated) { router.push("/login?redirect=/brand/dashboard"); return; }
       setIsChecking(false);
