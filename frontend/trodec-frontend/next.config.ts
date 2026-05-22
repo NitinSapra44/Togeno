@@ -1,11 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  compress: true,
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "**" },
       { protocol: "http", hostname: "**" },
     ],
+    formats: ["image/avif", "image/webp"],
+    minimumCacheTTL: 86400,
   },
   async rewrites() {
     return [

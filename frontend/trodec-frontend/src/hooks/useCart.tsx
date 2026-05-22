@@ -65,7 +65,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             // 2. If authenticated, sync with backend
             if (isAuthenticated) {
                 try {
-                    const backendItems = await CartService.getCart();
+                    const backendItems = (await CartService.getCart()) ?? [];
                     if (cancelled) return;
 
                     // Key = productId + ":" + (selectedSize or "")

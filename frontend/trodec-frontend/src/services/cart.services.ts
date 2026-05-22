@@ -26,7 +26,7 @@ export const CartService = {
   async getCart(): Promise<CartItem[]> {
     try {
       const response = await api.get<ApiSuccessResponse<CartItem[]>>('/products/cart/items');
-      return response.data.data;
+      return response.data.data ?? [];
     } catch (error) {
       throw new Error(getErrorMessage(error));
     }
