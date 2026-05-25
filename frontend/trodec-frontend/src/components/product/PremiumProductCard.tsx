@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Star, Package, TrendingUp, Flame, ShieldCheck, Users } from "lucide-react";
 import { Button } from "@/components/ui";
@@ -22,68 +23,75 @@ export function PremiumProductCard({
   className = "",
 }: PremiumProductCardProps) {
   const router = useRouter();
-  const hasImage = !!product.images?.[0]?.imageUrl;
+  const initialUrl = product.images?.[0]?.imageUrl ?? null;
+  const [imageOk, setImageOk] = useState<boolean>(Boolean(initialUrl));
+  const [loaded, setLoaded] = useState(false);
 
   return (
     <div
-      className={`group relative overflow-hidden transition-all duration-300 rounded-xl cursor-pointer hover:-translate-y-1 flex flex-col w-full bg-[#0f0f10] border border-white/10 hover:border-white/20 shadow-lg shadow-black/40 hover:shadow-xl hover:shadow-black/60 z-10 ${className}`}
+      className={`group relative h-full w-full flex flex-col cursor-pointer overflow-hidden rounded-xl bg-[#0c0c0d] border border-white/[0.07] hover:border-white/15 transition-all duration-300 hover:-translate-y-0.5 shadow-[0_6px_24px_-12px_rgba(0,0,0,0.7)] hover:shadow-[0_12px_32px_-12px_rgba(0,0,0,0.85)] ${className}`}
       onClick={() => router.push(`/consumer/products/${product.id}`)}
     >
-      {/* Image */}
-      <div className="relative aspect-[4/3] w-full p-2 overflow-hidden shrink-0 bg-[#0a0a0a]">
-        <div className="w-full h-full relative rounded-lg overflow-hidden bg-white skeleton">
-          {hasImage && product.images ? (
+      {/* ── IMAGE AREA ─────────────────────────────────────────── */}
+      <div className="relative w-full aspect-square overflow-hidden bg-gradient-to-br from-[#15151a] via-[#0e0e11] to-[#08080a]">
+        {/* Subtle radial highlight — premium product-shot feel */}
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_25%,rgba(255,255,255,0.045),transparent_60%)]" />
+
+        {imageOk && initialUrl ? (
+          <>
+            {!loaded && <div className="absolute inset-0 skeleton shimmer" />}
             <img
-              src={product.images[0].imageUrl}
+              src={initialUrl}
               alt={product.name}
               loading="lazy"
               decoding="async"
-              className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-105 opacity-0"
-              onLoad={(e) => {
-                const img = e.currentTarget as HTMLImageElement;
-                img.classList.remove("opacity-0");
-                img.classList.add("opacity-100");
-                (img.parentElement as HTMLElement).classList.remove("skeleton");
-              }}
+              className={`absolute inset-0 w-full h-full object-contain p-5 sm:p-6 transition-all duration-500 group-hover:scale-[1.04] ${
+                loaded ? "opacity-100" : "opacity-0"
+              }`}
+              onLoad={() => setLoaded(true)}
+              onError={() => setImageOk(false)}
             />
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-tr from-[#0a0a0a] to-[#0f0f10]">
-              <Package className="w-10 h-10 mb-2 text-gray-700" />
+          </>
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5">
+            <Package className="w-8 h-8 text-zinc-700" />
+            <span className="text-[9px] uppercase tracking-widest text-zinc-700 font-bold">
+              No image
+            </span>
+          </div>
+        )}
+
+        {/* Top-left: Trending / Popular badges */}
+        <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5">
+          {product.isFeatured && (
+            <div className="flex items-center gap-1 backdrop-blur-md text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border bg-purple-500/10 text-purple-300 border-purple-500/20">
+              <TrendingUp className="w-2.5 h-2.5" />
+              Trending
             </div>
           )}
-
-          {/* Top-left: Trending / Popular badges */}
-          <div className="absolute top-3 left-3 flex flex-col gap-1.5">
-            {product.isFeatured && (
-              <div className="flex items-center gap-1.5 backdrop-blur-md text-[10px] font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-md border bg-purple-500/10 text-purple-400 border-purple-500/20">
-                <TrendingUp className="w-3 h-3" />
-                Trending
-              </div>
-            )}
-            {product.reviewCount > 100 && (
-              <div className="flex items-center gap-1.5 backdrop-blur-md text-[10px] font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-md border bg-orange-500/10 text-orange-400 border-orange-500/20">
-                <Flame className="w-3 h-3" />
-                Popular
-              </div>
-            )}
-          </div>
-
-          {/* Top-right: Tested by Expert badge */}
-          {expertPost && (
-            <div className="absolute top-3 right-3 flex items-center gap-1 backdrop-blur-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] uppercase tracking-wider font-bold px-2.5 py-1.5 rounded-md shadow-lg">
-              <ShieldCheck className="w-3 h-3" />
-              <span className="hidden sm:inline">Tested</span>
+          {product.reviewCount > 100 && (
+            <div className="flex items-center gap-1 backdrop-blur-md text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border bg-orange-500/10 text-orange-300 border-orange-500/20">
+              <Flame className="w-2.5 h-2.5" />
+              Popular
             </div>
           )}
         </div>
+
+        {/* Top-right: Tested by Expert badge */}
+        {expertPost && (
+          <div className="absolute top-2.5 right-2.5 flex items-center gap-1 backdrop-blur-md bg-emerald-500/15 border border-emerald-500/25 text-emerald-300 text-[9px] uppercase tracking-wider font-bold px-2 py-1 rounded-md">
+            <ShieldCheck className="w-2.5 h-2.5" />
+            <span className="hidden sm:inline">Tested</span>
+          </div>
+        )}
       </div>
 
-      {/* Content Area */}
-      <div className="p-3 flex flex-col flex-grow relative z-10 transition-colors bg-transparent group-hover:bg-[#141416]">
-        {/* Brand + Category */}
-        <div className="flex items-center gap-1.5 mb-1 min-w-0">
+      {/* ── CONTENT ────────────────────────────────────────────── */}
+      <div className="flex flex-col flex-1 p-3.5 sm:p-4">
+        {/* Brand · Category */}
+        <div className="flex items-center gap-1.5 min-w-0 mb-1.5">
           {product.brand?.brandName && (
-            <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-zinc-400 truncate">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 truncate">
               {product.brand.brandName}
             </span>
           )}
@@ -91,20 +99,20 @@ export function PremiumProductCard({
             <span className="text-zinc-700 text-[9px] shrink-0">·</span>
           )}
           {product.category?.name && (
-            <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-zinc-600 truncate">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 truncate">
               {product.category.name}
             </span>
           )}
         </div>
 
-        {/* Product Title */}
-        <h3 className="font-semibold text-sm leading-tight line-clamp-2 text-white mb-2">
+        {/* Title */}
+        <h3 className="font-semibold text-[13px] leading-snug text-white line-clamp-2 mb-2 min-h-[2.4em]">
           {product.name}
         </h3>
 
-        {/* Expert + Community attribution */}
+        {/* Expert attribution */}
         {expertPost?.expert?.fullName && (
-          <div className="flex items-center gap-1.5 mb-1.5 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0 mb-2">
             <img
               src={
                 expertPost.expert.avatarUrl ||
@@ -113,9 +121,9 @@ export function PremiumProductCard({
               alt={expertPost.expert.fullName}
               loading="lazy"
               decoding="async"
-              className="w-4 h-4 rounded-full border border-white/10 shrink-0 object-cover overflow-hidden"
+              className="w-4 h-4 rounded-full border border-white/10 shrink-0 object-cover"
             />
-            <span className="text-[10px] font-semibold text-purple-400 truncate">
+            <span className="text-[10px] font-semibold text-purple-300 truncate">
               {expertPost.expert.fullName}
             </span>
             {expertPost.community && (
@@ -126,16 +134,9 @@ export function PremiumProductCard({
           </div>
         )}
 
-        {/* Expert Verdict */}
-        {(expertPost?.verdict || expertPost?.content) && (
-          <p className="text-[10px] text-zinc-400 italic leading-relaxed line-clamp-2 mb-2 pl-2 border-l-2 border-purple-500/30">
-            &ldquo;{expertPost.verdict || expertPost.content}&rdquo;
-          </p>
-        )}
-
         {/* Rating */}
         {product.averageRating > 0 && (
-          <div className="flex items-center gap-1.5 mb-2">
+          <div className="flex items-center gap-1.5 mb-2.5">
             <div className="flex gap-0.5">
               {[1, 2, 3, 4, 5].map((s) => (
                 <Star
@@ -152,22 +153,24 @@ export function PremiumProductCard({
           </div>
         )}
 
-        <div className="flex-grow" />
+        {/* Spacer pushes price + button to the bottom for equal-height cards */}
+        <div className="flex-1" />
 
         {/* Price */}
-        <div className="flex items-center justify-between mt-1.5 mb-2">
-          <div className="text-lg font-black tracking-tight text-white">
+        <div className="flex items-baseline justify-between gap-2 mb-3">
+          <div className="text-base sm:text-[17px] font-bold tracking-tight text-white">
             ₹{product.price.toFixed(2)}
           </div>
           {product.compareAtPrice && product.compareAtPrice > product.price && (
-            <span className="text-xs text-zinc-500 line-through">
+            <span className="text-[11px] text-zinc-500 line-through">
               ₹{product.compareAtPrice.toFixed(2)}
             </span>
           )}
         </div>
 
+        {/* View Product — always at the bottom */}
         <Button
-          className="w-full text-xs font-bold h-9 rounded-lg transition-all active:scale-95 bg-white text-black hover:bg-gray-200"
+          className="w-full h-9 text-[11px] font-bold rounded-lg bg-white text-black hover:bg-zinc-200 active:scale-[0.98] transition-all"
           onClick={(e) => {
             e.stopPropagation();
             router.push(`/consumer/products/${product.id}`);
@@ -185,7 +188,7 @@ export function PremiumProductCard({
             e.stopPropagation();
             onCommunityClick(communityData.id);
           }}
-          className="flex items-center justify-between gap-2 px-3 py-2 bg-emerald-500/5 border-t border-emerald-500/15 hover:bg-emerald-500/10 transition-colors"
+          className="flex items-center justify-between gap-2 px-3.5 py-2 bg-emerald-500/5 border-t border-emerald-500/15 hover:bg-emerald-500/10 transition-colors"
         >
           <div className="flex items-center gap-1.5 min-w-0">
             <Users className="w-3 h-3 text-emerald-400 shrink-0" />
@@ -204,21 +207,18 @@ export function PremiumProductCard({
 
 export function PremiumProductCardSkeleton() {
   return (
-    <div className="bg-[#0f0f10] border border-white/10 rounded-xl overflow-hidden flex flex-col">
-      <div className="p-2 bg-[#0a0a0a]">
-        <div className="w-full aspect-square rounded-lg skeleton shimmer" />
-      </div>
-      <div className="p-3 md:p-4 flex flex-col flex-grow space-y-3">
-        <div className="h-3 w-1/3 skeleton rounded" />
-        <div className="h-5 w-3/4 skeleton rounded" />
+    <div className="h-full flex flex-col rounded-xl border border-white/[0.07] bg-[#0c0c0d] overflow-hidden">
+      <div className="w-full aspect-square skeleton shimmer" />
+      <div className="p-3.5 sm:p-4 flex flex-col flex-1 gap-2">
+        <div className="h-2.5 w-1/3 skeleton rounded" />
+        <div className="h-4 w-4/5 skeleton rounded" />
         <div className="h-3 w-1/2 skeleton rounded" />
-        <div className="mt-auto space-y-2 pt-2">
-          <div className="flex justify-between items-center">
-            <div className="h-6 w-16 skeleton rounded" />
-            <div className="h-4 w-12 skeleton rounded" />
-          </div>
-          <div className="h-9 w-full skeleton rounded-lg" />
+        <div className="flex-1" />
+        <div className="flex justify-between items-center mt-2">
+          <div className="h-5 w-14 skeleton rounded" />
+          <div className="h-3 w-10 skeleton rounded" />
         </div>
+        <div className="h-9 w-full skeleton rounded-lg mt-1" />
       </div>
     </div>
   );

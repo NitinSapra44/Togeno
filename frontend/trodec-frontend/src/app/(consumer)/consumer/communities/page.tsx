@@ -42,6 +42,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCommunityStore } from "@/stores";
+import { uniqueById } from "@/lib/utils";
 
 function getCommunityEmoji(name: string): string {
   if (!name) return "👥";
@@ -151,7 +152,7 @@ export default function CommunitiesPage() {
       try {
         setIsLoading(true);
         const result = await getCommunities();
-        setCommunities(result.data);
+        setCommunities(uniqueById(result.data));
         if (isAuthenticated) {
           await fetchJoinedCommunities();
         }

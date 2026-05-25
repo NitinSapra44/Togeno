@@ -174,12 +174,19 @@ class AuthController {
       // Check if profile exists
       let profile = await userService.getProfile(user.id);
 
-      // If no profile, create one with default consumer role
+      // Only used when creating a brand-new profile. For an existing user we
+      // keep the role already stored in `profiles` — never silently switch it
+      // based on which login tab the user happened to click.
+      const requestedRole = req.body?.role;
+      const allowedRoles = ["consumer", "expert", "brand_admin"] as const;
+      const isValidRole = (r: unknown): r is typeof allowedRoles[number] =>
+        typeof r === "string" && (allowedRoles as readonly string[]).includes(r);
+
       if (!profile) {
         profile = await userService.createProfile({
           userId: user.id,
           email: user.email,
-          role: "consumer",
+          role: isValidRole(requestedRole) ? requestedRole : "consumer",
           fullName: user.email.split("@")[0], // Use email prefix as default name
         });
       }

@@ -487,15 +487,23 @@ class OrderService {
         country: orderRow.shipping_country,
       };
       (async () => {
+        logger.info("Starting Shiprocket forward shipment", { orderId });
         const { data: item } = await supabaseAdmin
           .from("order_items")
           .select("brand_id")
           .eq("order_id", orderId)
           .limit(1)
           .maybeSingle();
+        logger.info("Resolved brand for shipment", { orderId, brandId: item?.brand_id ?? "none" });
         const { fromAddress, pickupLocation } = await resolveBrandPickupLocation(item?.brand_id ?? "");
+        logger.info("Calling createForwardShipment", { orderId, pickupLocation });
         await logisticsService.createForwardShipment({ orderId, fromAddress, toAddress, pickupLocation });
-      })().catch((err) => logger.error("Forward shipment creation failed", { orderId, err }));
+        logger.info("Shiprocket shipment created successfully", { orderId });
+      })().catch((err) => logger.error("SHIPROCKET FAILED — forward shipment not created", {
+        orderId,
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      }));
     }
 
     return order;

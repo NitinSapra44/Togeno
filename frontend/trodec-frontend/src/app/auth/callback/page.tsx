@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
-import { completeOAuth } from "@/services/auth.service";
+import { completeOAuth, signOut as apiSignOut, UserRole } from "@/services/auth.service";
 import { useAuthStore } from "@/stores/auth.store";
 
 const roleRoutes: Record<string, string> = {
@@ -13,12 +13,21 @@ const roleRoutes: Record<string, string> = {
   admin: "/admin/dashboard",
 };
 
+const roleLabels: Record<string, string> = {
+  consumer: "Consumer",
+  expert: "Expert",
+  brand_admin: "Brand",
+  admin: "Admin",
+};
+
+const VALID_ROLES: UserRole[] = ["consumer", "expert", "brand_admin", "admin"];
+
 function AuthCallbackPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
-  const { setUser } = useAuthStore();
+  const { setUser, reset } = useAuthStore();
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -31,6 +40,15 @@ function AuthCallbackPageContent() {
         return;
       }
 
+      // The role tab the user picked before starting Google OAuth. We pass it
+      // through the redirectTo query string so it survives the OAuth round-trip
+      // (sessionStorage would not survive a new-tab flow).
+      const intendedRoleRaw = searchParams.get("intended_role");
+      const intendedRole =
+        intendedRoleRaw && (VALID_ROLES as string[]).includes(intendedRoleRaw)
+          ? (intendedRoleRaw as UserRole)
+          : null;
+
       // Get tokens from URL hash (Supabase returns them in the hash fragment)
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
       const accessToken = hashParams.get("access_token");
@@ -42,23 +60,51 @@ function AuthCallbackPageContent() {
         return;
       }
 
-      // Store tokens
+      // Store tokens so the authenticated API call below works.
       localStorage.setItem("accessToken", accessToken);
       localStorage.setItem("refreshToken", refreshToken);
 
       try {
-        // Complete OAuth — creates or fetches the profile
-        const userWithProfile = await completeOAuth();
+        // For brand-new accounts (no profile yet) the backend uses the
+        // intended role from this call as the role of the new profile.
+        // For existing accounts the backend ignores it and returns the
+        // already-stored role — we then enforce the match below.
+        const userWithProfile = await completeOAuth(intendedRole ?? undefined);
 
-        // Update auth store
+        const actualRole = userWithProfile.profile?.role ?? null;
+
+        // Role mismatch — the email already exists under a different role.
+        // Do NOT silently redirect to whatever dashboard that role points at;
+        // that's exactly what causes consumer logins to land on the brand
+        // dashboard. Sign the user out and surface a clear error.
+        if (
+          intendedRole &&
+          actualRole &&
+          actualRole !== intendedRole &&
+          actualRole !== "admin" // admins keep their elevated role
+        ) {
+          // Tear down both the server session and local auth state.
+          try { await apiSignOut(); } catch { /* best-effort */ }
+          localStorage.removeItem("accessToken");
+          localStorage.removeItem("refreshToken");
+          reset();
+
+          const intendedLabel = roleLabels[intendedRole] ?? intendedRole;
+          const actualLabel = roleLabels[actualRole] ?? actualRole;
+          setError(
+            `This Google account is registered as a ${actualLabel}, not a ${intendedLabel}. Switch to the ${actualLabel} tab on the sign-in page to continue.`
+          );
+          setStatus("error");
+          return;
+        }
+
+        // Commit to the auth store and redirect based on the role we actually
+        // have — never on a guessed default.
         setUser(userWithProfile);
-
         setStatus("success");
 
-        // Determine redirect based on role
-        const role = userWithProfile.profile?.role;
-        const destination = role
-          ? (roleRoutes[role] ?? "/consumer/dashboard")
+        const destination = actualRole
+          ? (roleRoutes[actualRole] ?? "/consumer/dashboard")
           : "/consumer/dashboard";
 
         setTimeout(() => {
@@ -75,7 +121,7 @@ function AuthCallbackPageContent() {
     };
 
     handleCallback();
-  }, [router, searchParams, setUser]);
+  }, [router, searchParams, setUser, reset]);
 
   if (status === "error") {
     return (

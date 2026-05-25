@@ -50,38 +50,59 @@ export function BrandOnboarding() {
         }));
     };
 
+    const normaliseUrl = (raw: string): string | undefined => {
+        const trimmed = raw.trim();
+        if (!trimmed) return undefined;
+        if (/^https?:\/\//i.test(trimmed)) return trimmed;
+        return `https://${trimmed}`;
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (loading) return;
 
         if (selectedCategories.length === 0) {
             toast.error("Please select at least one brand category.");
             return;
         }
 
-        if (!formData.description) {
+        if (!formData.description.trim()) {
             toast.error("Please provide a brand description.");
             return;
+        }
+
+        const websiteUrl = normaliseUrl(formData.websiteUrl);
+        if (formData.websiteUrl.trim() && websiteUrl) {
+            try {
+                new URL(websiteUrl);
+            } catch {
+                toast.error("Please enter a valid website URL.");
+                return;
+            }
         }
 
         setLoading(true);
 
         try {
-            const combinedDescription = `${formData.description}\n\nTarget Audience: ${formData.targetAudience}`;
+            const combinedDescription = formData.targetAudience.trim()
+                ? `${formData.description.trim()}\n\nTarget Audience: ${formData.targetAudience.trim()}`
+                : formData.description.trim();
 
             await updateBrandDetails({
                 businessType: selectedCategories.join(", "),
                 description: combinedDescription,
-                websiteUrl: formData.websiteUrl || undefined,
+                websiteUrl,
             });
 
-            await fetchCurrentUser(); // Refresh the auth store so brandDetails is updated
+            await fetchCurrentUser();
 
             toast.success("Welcome aboard! Onboarding complete.");
-            router.push("/brand/dashboard");
-        } catch (error: any) {
+            router.replace("/brand/dashboard");
+        } catch (error: unknown) {
             console.error("Onboarding error:", error);
-            toast.error(error.message || "Failed to save onboarding details");
-        } finally {
+            const message = error instanceof Error ? error.message : "Failed to save onboarding details";
+            toast.error(message);
             setLoading(false);
         }
     };

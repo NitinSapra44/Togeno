@@ -99,15 +99,18 @@ export default function BrandLayout({
     }
   }, [isChecking, profile, router]);
 
+  const onboardingComplete = Boolean(
+    brandDetails?.businessType && brandDetails?.description
+  );
+  const isOnboardingPage = pathname === "/brand/onboarding";
+
   /* Onboarding check */
   useEffect(() => {
     if (!isChecking && isAuthenticated && brandDetails) {
-      const complete = Boolean(brandDetails.businessType && brandDetails.description);
-      const onboardingPage = pathname === "/brand/onboarding";
-      if (!complete && !onboardingPage) router.push("/brand/onboarding");
-      else if (complete && onboardingPage) router.push("/brand/dashboard");
+      if (!onboardingComplete && !isOnboardingPage) router.push("/brand/onboarding");
+      else if (onboardingComplete && isOnboardingPage) router.push("/brand/dashboard");
     }
-  }, [isChecking, isAuthenticated, brandDetails, pathname, router]);
+  }, [isChecking, isAuthenticated, brandDetails, onboardingComplete, isOnboardingPage, router]);
 
   const handleLogoutConfirm = async () => {
     setIsLogoutModalOpen(false);
@@ -115,7 +118,13 @@ export default function BrandLayout({
     router.push("/login");
   };
 
-  if (!hydrated || isChecking || !isAuthenticated) {
+  // Block rendering for non-brand roles while the redirect above completes,
+  // so brand-only content / fetches don't fire under the wrong account.
+  const wrongRoleForBrand = Boolean(
+    profile && profile.role !== "brand_admin" && profile.role !== "admin"
+  );
+
+  if (!hydrated || isChecking || !isAuthenticated || wrongRoleForBrand) {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center">
         <Loader2 className="h-5 w-5 animate-spin text-zinc-500" />
@@ -123,8 +132,16 @@ export default function BrandLayout({
     );
   }
 
-  /* Unverified brand gate */
-  if (brandDetails && !brandDetails.isVerified) {
+  /* Onboarding page renders without the sidebar chrome so the brand can
+     complete their details before the verification gate kicks in. */
+  if (isOnboardingPage) {
+    return <>{children}</>;
+  }
+
+  /* Unverified brand gate — only after onboarding is done. New brands first
+     need to fill in their business details (handled above) before they see
+     the pending-approval screen. */
+  if (brandDetails && onboardingComplete && !brandDetails.isVerified) {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center px-4">
         <div className="max-w-md w-full text-center space-y-5">

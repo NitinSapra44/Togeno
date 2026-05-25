@@ -29,6 +29,7 @@ import {
 } from "@/services/post_discussion.service";
 import { useModalStore } from "@/stores/modal.store";
 import { toast } from "sonner";
+import { uniqueById } from "@/lib/utils";
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -403,9 +404,9 @@ export default function DashboardPage() {
           PostService.getPosts({ isPublished: "true", limit: 30, sortBy: "created_at", sortOrder: "desc" }),
           getProducts({ limit: 100 }),
         ]);
-        setCommunities(commResult.data);
-        setPosts(postsResult.data);
-        setProducts(productsResult.data);
+        setCommunities(uniqueById(commResult.data));
+        setPosts(uniqueById(postsResult.data));
+        setProducts(uniqueById(productsResult.data));
         if (isAuthenticated) await fetchJoinedCommunities();
       } catch (error) {
         console.error(error);
@@ -487,7 +488,7 @@ export default function DashboardPage() {
   let discoverContent: React.ReactNode;
   if (isLoading) {
     discoverContent = (
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 auto-rows-fr">
         {["p0", "p1", "p2", "p3"].map((k) => (
           <PremiumProductCardSkeleton key={k} />
         ))}
@@ -510,7 +511,7 @@ export default function DashboardPage() {
     );
   } else {
     discoverContent = (
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 auto-rows-fr">
         {trendingProducts.map((product) => {
           const productCommunity = product.communityId
             ? communities.find((c) => c.id === product.communityId)
@@ -639,6 +640,53 @@ export default function DashboardPage() {
 
               {discoverContent}
             </div>
+
+            {/* DISCOVER COMMUNITIES — appears below the personalised feed */}
+            {!isLoading && suggestedCommunities.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Compass className="w-4 h-4 text-blue-400" />
+                      <h2 className="text-[15px] font-bold text-white tracking-tight">Discover Communities</h2>
+                    </div>
+                    <p className="text-[11px] text-zinc-500 mt-0.5 ml-6">
+                      Other spaces you might like
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => router.push("/consumer/communities")}
+                    className="text-[11px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors uppercase tracking-wider shrink-0"
+                  >
+                    Browse All
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {suggestedCommunities.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => router.push(`/consumer/communities/${c.id}`)}
+                      className="flex items-start gap-3 p-4 rounded-xl border border-white/10 bg-[#0a0a0c] hover:bg-[#111] hover:border-blue-500/30 transition-all text-left"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+                        <Users className="w-5 h-5 text-blue-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-bold text-white truncate">{c.name}</p>
+                        <p className="text-[11px] text-zinc-500 line-clamp-2 mt-0.5">
+                          {c.description || `${c.memberCount ?? 0} members · ${c.expertCount ?? 0} experts`}
+                        </p>
+                      </div>
+                      <span className="text-[9px] font-black text-emerald-400 uppercase tracking-wider shrink-0 bg-emerald-500/15 px-2 py-1 rounded">
+                        Join
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
           </div>
 

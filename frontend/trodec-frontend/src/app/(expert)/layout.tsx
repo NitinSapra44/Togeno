@@ -108,13 +108,49 @@ export default function ExpertLayout({
     }
   }, [isChecking, profile, router]);
 
+  /* Once verified, the expert goes through a one-time onboarding flow:
+     fill in bio/expertise → create first community → land on dashboard. */
+  useEffect(() => {
+    if (isChecking || !isAuthenticated) return;
+    if (!expertDetails || !expertDetails.isVerified) return;
+    if (!user?.id) return;
+    if (typeof window === "undefined") return;
+
+    const flagKey = `trodec-expert-onboarded-${user.id}`;
+    let onboarded = false;
+    try {
+      onboarded = localStorage.getItem(flagKey) === "1";
+    } catch { /* private mode — treat as not-onboarded */ }
+
+    const profileLooksReady = Boolean(expertDetails.bio);
+    if (profileLooksReady && !onboarded) {
+      try { localStorage.setItem(flagKey, "1"); } catch { /* ignore */ }
+      onboarded = true;
+    }
+
+    const onOnboarding = pathname === "/expert/onboarding";
+    const onCreateCommunity = pathname === "/expert/communities/new";
+
+    if (!onboarded && !onOnboarding) {
+      router.push("/expert/onboarding");
+    } else if (onboarded && onOnboarding && !onCreateCommunity) {
+      router.push("/expert/communities/new");
+    }
+  }, [isChecking, isAuthenticated, expertDetails, user?.id, pathname, router]);
+
   const handleLogoutConfirm = async () => {
     setIsLogoutModalOpen(false);
     await signOut();
     router.push("/login");
   };
 
-  if (!hydrated || isChecking || !isAuthenticated) {
+  // Block rendering for non-expert roles while the redirect above completes,
+  // so expert-only content / fetches don't fire under the wrong account.
+  const wrongRoleForExpert = Boolean(
+    profile && profile.role !== "expert" && profile.role !== "admin"
+  );
+
+  if (!hydrated || isChecking || !isAuthenticated || wrongRoleForExpert) {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center">
         <Loader2 className="h-5 w-5 animate-spin text-emerald-500" />

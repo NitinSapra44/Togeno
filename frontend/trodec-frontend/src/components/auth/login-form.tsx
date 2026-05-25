@@ -152,7 +152,11 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
     }
     setGoogleLoading(true);
     try {
-      const redirectTo = `${window.location.origin}/auth/callback`;
+      // The callback page reads `intended_role` from the query and enforces
+      // it against the user's stored profile — preventing a consumer-tab
+      // Google sign-in from landing on the brand dashboard when the same
+      // email is also linked to a brand profile.
+      const redirectTo = `${window.location.origin}/auth/callback?intended_role=${encodeURIComponent(role)}`;
       const url = await getGoogleOAuthUrl(redirectTo);
       window.location.href = url;
     } catch (err) {

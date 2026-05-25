@@ -15,6 +15,7 @@ import { useModalStore } from "@/stores/modal.store";
 import { ProductFilters, FilterState } from "@/components/product/product-filters";
 import { motion, AnimatePresence } from "framer-motion";
 import { PremiumProductCard, PremiumProductCardSkeleton } from "@/components/product/PremiumProductCard";
+import { uniqueById } from "@/lib/utils";
 
 
 const listVariants = {
@@ -72,7 +73,7 @@ export default function ProductsPage() {
             PostService.getPosts({ isPublished: "true", limit: 100, sortBy: "created_at", sortOrder: "desc" }),
           ]);
           if (!controller.signal.aborted) {
-            setProducts(productsResult.data as Product[]);
+            setProducts(uniqueById(productsResult.data as Product[]));
             const map: Record<string, PostWithDetails> = {};
             postsResult.data.forEach((post) => {
               if (!map[post.productId]) map[post.productId] = post;
@@ -136,7 +137,7 @@ export default function ProductsPage() {
   }
 
   const renderSkeletons = () => (
-    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
+    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 auto-rows-fr">
       {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
         <PremiumProductCardSkeleton key={i} />
       ))}
@@ -263,7 +264,7 @@ export default function ProductsPage() {
           variants={listVariants}
           initial="hidden"
           animate="show"
-          className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5"
+          className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 auto-rows-fr"
         >
           <AnimatePresence>
             {filteredProducts.map((product) => (
@@ -271,6 +272,7 @@ export default function ProductsPage() {
                 key={product.id}
                 variants={itemVariants}
                 layout
+                className="h-full"
               >
                 <PremiumProductCard
                   product={product}

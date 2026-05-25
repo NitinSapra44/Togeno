@@ -157,6 +157,22 @@ export const useAuthStore = create<AuthState>()(
           });
           // Clear community membership so the next user doesn't see stale data
           useCommunityStore.setState({ joinedCommunities: [], hasFetched: false, isLoading: false });
+          // Defence-in-depth: wipe any cart entries from localStorage so a
+          // subsequent sign-in on the same device cannot inherit them. The
+          // CartProvider also purges these, but doing it here guarantees the
+          // cleanup even if the provider isn't mounted (e.g. after navigating
+          // to /login). Also strips the legacy global "cart" key.
+          if (typeof window !== 'undefined') {
+            try {
+              const toRemove: string[] = [];
+              for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (!k) continue;
+                if (k === 'cart' || k.startsWith('trodec-cart:')) toRemove.push(k);
+              }
+              toRemove.forEach((k) => localStorage.removeItem(k));
+            } catch { /* ignore */ }
+          }
         }
       },
 

@@ -91,7 +91,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.push("/admin/login");
   };
 
-  if (!hydrated || isChecking || !isAuthenticated) {
+  // Block rendering for non-admin roles while the redirect above completes,
+  // so admin-only content doesn't flash for the wrong account.
+  const wrongRoleForAdmin = Boolean(profile && profile.role !== "admin");
+
+  if (!hydrated || isChecking || !isAuthenticated || wrongRoleForAdmin) {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />

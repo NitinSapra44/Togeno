@@ -240,9 +240,14 @@ export async function updateBrandDetails(data: UpdateBrandData): Promise<BrandDe
   }
 }
 
-export async function completeOAuth(): Promise<UserWithProfile> {
+export async function completeOAuth(intendedRole?: UserRole): Promise<UserWithProfile> {
   try {
-    const response = await api.post<ApiSuccessResponse<UserWithProfile>>('/auth/oauth/complete');
+    // `intendedRole` is the role the user picked on the login tab before
+    // starting the OAuth flow. The backend uses it as the role for a brand-new
+    // profile. For existing profiles the backend keeps the stored role and
+    // the caller is responsible for detecting/handling mismatches.
+    const body = intendedRole ? { role: intendedRole } : {};
+    const response = await api.post<ApiSuccessResponse<UserWithProfile>>('/auth/oauth/complete', body);
     return response.data.data;
   } catch (error) {
     throw new Error(getErrorMessage(error));

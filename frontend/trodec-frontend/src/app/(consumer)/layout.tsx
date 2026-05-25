@@ -20,6 +20,7 @@ import {
 import { useNotifications } from "@/hooks/useNotifications";
 import { cn } from "@/lib/utils";
 import { useAuthStore, useAuthHydrated } from "@/stores/auth.store";
+import { useCommunityStore } from "@/stores/community.store";
 import { LogoutConfirmModal } from "@/components/ui/logout-confirm-modal";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -69,7 +70,8 @@ export default function ConsumerLayout({
   const pathname = usePathname();
   const router = useRouter();
   const hydrated = useAuthHydrated();
-  const { profile, isAuthenticated, fetchCurrentUser, signOut } = useAuthStore();
+  const { user, profile, isAuthenticated, fetchCurrentUser, signOut } = useAuthStore();
+  const { joinedCommunities, fetchJoinedCommunities, hasFetched } = useCommunityStore();
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -117,7 +119,59 @@ export default function ConsumerLayout({
     }
   }, [isChecking, profile, router]);
 
-  if (!hydrated || isChecking || !isAuthenticated) {
+  /* Make sure joined-community state is loaded so the onboarding gate
+     below has accurate data before deciding to redirect. */
+  useEffect(() => {
+    if (!isChecking && isAuthenticated && !hasFetched) {
+      fetchJoinedCommunities();
+    }
+  }, [isChecking, isAuthenticated, hasFetched, fetchJoinedCommunities]);
+
+  /* New-user onboarding gate: first-time consumers pick interests and
+     join at least one community before landing on the dashboard. */
+  useEffect(() => {
+    if (isChecking || !isAuthenticated || !user?.id) return;
+    if (profile?.role && profile.role !== "consumer") return;
+    if (!hasFetched) return;
+    if (typeof window === "undefined") return;
+
+    const flagKey = `trodec-consumer-onboarded-${user.id}`;
+    let onboarded = false;
+    try {
+      onboarded = localStorage.getItem(flagKey) === "1";
+    } catch { /* private mode */ }
+
+    if (joinedCommunities.length > 0 && !onboarded) {
+      try { localStorage.setItem(flagKey, "1"); } catch { /* ignore */ }
+      onboarded = true;
+    }
+
+    const onOnboarding = pathname === "/consumer/onboarding";
+    if (!onboarded && !onOnboarding) {
+      router.push("/consumer/onboarding");
+    } else if (onboarded && onOnboarding) {
+      router.replace("/consumer/dashboard");
+    }
+  }, [
+    isChecking,
+    isAuthenticated,
+    user?.id,
+    profile?.role,
+    joinedCommunities,
+    hasFetched,
+    pathname,
+    router,
+  ]);
+
+  // Block rendering (and any child data-fetches) for non-consumer roles while
+  // the role-based redirect above completes. Without this, a brand_admin who
+  // briefly hits /consumer/* would still mount <CartProvider> and trigger a
+  // cart fetch under the wrong account context.
+  const wrongRoleForConsumer = Boolean(
+    profile && profile.role !== "consumer" && profile.role !== "admin"
+  );
+
+  if (!hydrated || isChecking || !isAuthenticated || wrongRoleForConsumer) {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />

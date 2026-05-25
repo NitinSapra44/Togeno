@@ -11,7 +11,7 @@ import type { NextRequest } from 'next/server';
 // where localStorage is not available (same as SSR). The Zustand persist adapter
 // and all localStorage calls in services/auth.service.ts are already guarded
 // with `typeof window === 'undefined'` checks.
-export function middleware(_request: NextRequest) {
+export function proxy(_request: NextRequest) {
   return NextResponse.next();
 }
 
