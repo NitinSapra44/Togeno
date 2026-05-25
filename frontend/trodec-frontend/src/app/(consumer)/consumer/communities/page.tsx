@@ -76,6 +76,7 @@ export default function CommunitiesPage() {
   const { openLoginModal } = useModalStore();
   const {
     joinedCommunities,
+    joinedCommunityObjects,
     fetchJoinedCommunities,
     joinCommunity: storeJoinCommunity,
     leaveCommunity: storeLeaveCommunity,
@@ -127,7 +128,7 @@ export default function CommunitiesPage() {
         await storeLeaveCommunity(community.id);
         toast.success(`Left ${community.name}`);
       } else {
-        await storeJoinCommunity(community.id);
+        await storeJoinCommunity(community.id, community);
         toast.success(`Joined ${community.name}`);
       }
       setCommunities((prev) =>
@@ -165,10 +166,9 @@ export default function CommunitiesPage() {
     fetchData();
   }, [isAuthenticated, fetchJoinedCommunities]);
 
-  // Derived lists
-  const joinedCommunitiesList = communities.filter((c) =>
-    joinedCommunities.includes(c.id)
-  );
+  // "My Communities" uses the full objects fetched from /users/me/communities
+  // so it shows ALL joined communities regardless of the explore list's page size.
+  const joinedCommunitiesList = joinedCommunityObjects;
 
   let exploreList = communities.filter(
     (c) =>

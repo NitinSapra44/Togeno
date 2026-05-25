@@ -156,7 +156,7 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false,
           });
           // Clear community membership so the next user doesn't see stale data
-          useCommunityStore.setState({ joinedCommunities: [], hasFetched: false, isLoading: false });
+          useCommunityStore.setState({ joinedCommunities: [], joinedCommunityObjects: [], hasFetched: false, isLoading: false });
           // Defence-in-depth: wipe any cart entries from localStorage so a
           // subsequent sign-in on the same device cannot inherit them. The
           // CartProvider also purges these, but doing it here guarantees the
