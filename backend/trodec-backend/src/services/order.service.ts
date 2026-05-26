@@ -291,8 +291,9 @@ class OrderService {
       });
     }
 
-    const taxAmount = subtotal * 0.08;
-    const shippingAmount = 0;
+    const taxAmount = 0;
+    const FREE_SHIPPING_THRESHOLD = 50;
+    const shippingAmount = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : 5.99;
     const total = subtotal + taxAmount + shippingAmount;
 
     try {
