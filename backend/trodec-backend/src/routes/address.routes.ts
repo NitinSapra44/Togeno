@@ -33,6 +33,12 @@ router.get("/", authenticate, addressController.getAddresses);
 router.get("/default/shipping", authenticate, addressController.getDefaultShipping);
 
 /**
+ * GET /addresses/warehouse
+ * Get expert warehouse address (MUST come before /:id)
+ */
+router.get("/warehouse", authenticate, addressController.getWarehouse);
+
+/**
  * GET /addresses/default/billing
  * Get default billing address (MUST come before /:id)
  */
@@ -80,5 +86,11 @@ router.post(
   authenticate,
   addressController.setDefaultBilling
 );
+
+/**
+ * POST /addresses/:id/set-warehouse
+ * Mark as expert warehouse address
+ */
+router.post("/:id/set-warehouse", authenticate, addressController.setWarehouse);
 
 export default router;

@@ -5,6 +5,18 @@ import { productService } from "./product.service";
 import { logisticsService, shiprocketClient } from "./logistics.service";
 import { commissionService } from "./commission.service";
 import { brandService } from "./brand.service";
+import { emailService } from "./email.service";
+import { notificationService } from "./notification.service";
+
+// Valid order status transitions — terminal states (delivered, cancelled) have no outbound edges
+const VALID_TRANSITIONS: Record<string, string[]> = {
+  pending:    ["confirmed", "cancelled"],
+  confirmed:  ["processing", "shipped", "cancelled"],
+  processing: ["shipped", "cancelled"],
+  shipped:    ["delivered", "cancelled"],
+  delivered:  [],
+  cancelled:  [],
+};
 
 async function resolveBrandPickupLocation(brandId: string): Promise<{ fromAddress: Record<string, unknown>; pickupLocation: string }> {
   const { data: addr } = await supabaseAdmin
@@ -344,10 +356,33 @@ class OrderService {
       // 4. Clear Supabase cart (no-op if frontend used localStorage cart)
       await productService.clearCart(userId);
 
-      return {
+      const createdOrder = {
         ...order,
         items: itemsData?.map((row) => toOrderItem(row as OrderItemRow)) || [],
       };
+
+      // 5. Send order confirmation email (fire-and-forget)
+      const { data: userProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("email, full_name")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (userProfile?.email) {
+        emailService.sendOrderConfirmation({
+          to: userProfile.email,
+          customerName: userProfile.full_name ?? "Customer",
+          orderNumber: order.orderNumber,
+          orderTotal: order.total,
+          items: createdOrder.items.map((i) => ({
+            productName: i.productName,
+            quantity: i.quantity,
+            subtotal: i.subtotal,
+          })),
+        }).catch((err) => logger.error("Order confirmation email failed", { orderId: order.id, err }));
+      }
+
+      return createdOrder;
     } catch (error) {
       logger.error("Failed to create order from cart", { error, userId });
       throw error;
@@ -441,13 +476,30 @@ class OrderService {
 
   /**
    * Update order status.
-   * Hooks: DELIVERED → commission; CANCELLED → reverse commission + return shipment; CONFIRMED → forward shipment
+   * Hooks: DELIVERED → commission; CANCELLED → reverse commission + refund + restore stock; CONFIRMED → forward shipment
+   * Validates that the transition is legal before writing.
    */
   async updateOrderStatus(
     orderId: string,
     status: "pending" | "confirmed" | "processing" | "shipped" | "delivered" | "cancelled",
     userId?: string
   ): Promise<Order> {
+    // Fetch current status to validate the transition
+    const { data: current } = await supabaseAdmin
+      .from("orders")
+      .select("status, user_id")
+      .eq("id", orderId)
+      .maybeSingle();
+
+    if (!current) throw ApiError.notFound("Order not found");
+
+    const allowed = VALID_TRANSITIONS[current.status] ?? [];
+    if (!allowed.includes(status)) {
+      throw ApiError.badRequest(
+        `Cannot transition order from '${current.status}' to '${status}'`
+      );
+    }
+
     let query = supabaseAdmin.from("orders").update({ status }).eq("id", orderId);
     if (userId) query = query.eq("user_id", userId);
 
@@ -460,6 +512,19 @@ class OrderService {
     }
 
     const order = toOrder(orderRow as OrderRow);
+    const consumerId = (orderRow as any).user_id as string;
+
+    // Fire in-app notification to the consumer for each meaningful status change
+    const notifMap: Partial<Record<typeof status, { title: string; message: string }>> = {
+      confirmed:  { title: "Order Confirmed", message: `Your order #${order.orderNumber} has been confirmed and is being prepared.` },
+      shipped:    { title: "Order Shipped", message: `Your order #${order.orderNumber} is on its way!` },
+      delivered:  { title: "Order Delivered", message: `Your order #${order.orderNumber} has been delivered.` },
+      cancelled:  { title: "Order Cancelled", message: `Your order #${order.orderNumber} has been cancelled. A refund will be processed if applicable.` },
+    };
+    const notif = notifMap[status];
+    if (notif && consumerId) {
+      notificationService.create(consumerId, `order.${status}`, notif.title, notif.message, { orderId, orderNumber: order.orderNumber }).catch(() => {});
+    }
 
     if (status === "delivered") {
       commissionService.calculateAndStore(orderId, order.total, order.expertId).catch((err) =>
@@ -474,6 +539,34 @@ class OrderService {
       logisticsService.cancelOrderShipment(orderId).catch((err) =>
         logger.error("Shiprocket order cancellation failed", { orderId, err })
       );
+      // Lazy import avoids circular dep at module init time (payment.service imports orderService)
+      import("./payment.service").then(({ paymentService }) =>
+        paymentService.refundPayment(orderId).catch((err) =>
+          logger.error("Razorpay refund failed on cancellation", { orderId, err })
+        )
+      );
+      // Restore product stock for all items in the cancelled order
+      (async () => {
+        const { data: items } = await supabaseAdmin
+          .from("order_items")
+          .select("product_id, quantity")
+          .eq("order_id", orderId);
+        if (!items) return;
+        for (const item of items) {
+          const { data: p } = await supabaseAdmin
+            .from("products")
+            .select("stock_quantity")
+            .eq("id", item.product_id)
+            .single();
+          if (p) {
+            await supabaseAdmin
+              .from("products")
+              .update({ stock_quantity: (p as any).stock_quantity + item.quantity })
+              .eq("id", item.product_id);
+            logger.info("Stock restored for cancelled order item", { orderId, productId: item.product_id });
+          }
+        }
+      })().catch((err) => logger.error("Stock restoration failed on cancellation", { orderId, err }));
     }
 
     if (status === "confirmed") {
@@ -510,15 +603,109 @@ class OrderService {
   }
 
   /**
-   * Cancel order
+   * Cancel order — only allowed from non-terminal, pre-shipped statuses.
    */
   async cancelOrder(orderId: string, userId: string): Promise<Order> {
     const order = await this.getOrder(orderId, userId);
     if (!order) throw ApiError.notFound("Order not found");
-    if (["shipped", "delivered", "cancelled"].includes(order.status)) {
+    // VALID_TRANSITIONS already enforces this, but give a clear message for the consumer
+    if (!VALID_TRANSITIONS[order.status]?.includes("cancelled")) {
       throw ApiError.badRequest(`Cannot cancel order with status: ${order.status}`);
     }
     return this.updateOrderStatus(orderId, "cancelled", userId);
+  }
+
+  /**
+   * Get orders attributed to an expert (via source_post_id → post.expert_id)
+   * Used for the Expert Orders Dashboard.
+   */
+  async getExpertOrders(
+    expertId: string,
+    options: { page?: number; limit?: number; status?: string } = {}
+  ): Promise<{ orders: OrderWithItems[]; total: number; stats: { totalOrders: number; totalRevenue: number; topProducts: Array<{ productId: string; productName: string; count: number }> } }> {
+    const page = options.page ?? 1;
+    const limit = options.limit ?? 20;
+    const offset = (page - 1) * limit;
+
+    let query = supabaseAdmin
+      .from("orders")
+      .select("*", { count: "exact" })
+      .eq("expert_id", expertId)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (options.status) {
+      query = query.eq("status", options.status);
+    }
+
+    const { data: orderRows, error, count } = await query;
+
+    if (error) {
+      logger.error("Failed to fetch expert orders", { error: error.message, expertId });
+      throw ApiError.internal("Failed to fetch expert orders");
+    }
+
+    const orders: OrderWithItems[] = await Promise.all(
+      (orderRows ?? []).map(async (row) => {
+        const order = toOrder(row as OrderRow);
+        const { data: itemRows } = await supabaseAdmin
+          .from("order_items")
+          .select("*")
+          .eq("order_id", order.id);
+
+        const items: OrderItem[] = (itemRows ?? []).map((ir) => ({
+          id: ir.id,
+          orderId: ir.order_id,
+          productId: ir.product_id,
+          brandId: ir.brand_id,
+          productName: ir.product_name,
+          productPrice: ir.product_price,
+          quantity: ir.quantity,
+          subtotal: ir.subtotal,
+          selectedSize: ir.selected_size ?? null,
+          createdAt: ir.created_at,
+        }));
+
+        return { ...order, items };
+      })
+    );
+
+    // Stats: total revenue + top products across ALL expert orders (not paginated)
+    const { data: allOrderRows } = await supabaseAdmin
+      .from("orders")
+      .select("id, total")
+      .eq("expert_id", expertId)
+      .not("status", "eq", "cancelled");
+
+    const totalRevenue = (allOrderRows ?? []).reduce((sum, o) => sum + Number(o.total), 0);
+
+    const { data: allItemRows } = await supabaseAdmin
+      .from("order_items")
+      .select("product_id, product_name, quantity")
+      .in("order_id", (allOrderRows ?? []).map((o) => o.id));
+
+    const productCounts: Record<string, { productName: string; count: number }> = {};
+    for (const item of allItemRows ?? []) {
+      if (!productCounts[item.product_id]) {
+        productCounts[item.product_id] = { productName: item.product_name, count: 0 };
+      }
+      productCounts[item.product_id].count += item.quantity;
+    }
+
+    const topProducts = Object.entries(productCounts)
+      .map(([productId, v]) => ({ productId, productName: v.productName, count: v.count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    return {
+      orders,
+      total: count ?? 0,
+      stats: {
+        totalOrders: allOrderRows?.length ?? 0,
+        totalRevenue,
+        topProducts,
+      },
+    };
   }
 
   /**

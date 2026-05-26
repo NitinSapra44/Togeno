@@ -209,6 +209,26 @@ class PitchController {
   }
 
   /**
+   * POST /pitches/:id/confirm-receipt
+   * Expert confirms product has been received
+   */
+  async confirmReceipt(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { id } = req.params;
+      const pitchId = Array.isArray(id) ? id[0] : id;
+
+      const pitch = await pitchService.confirmReceipt(pitchId, req.user!.id);
+      sendSuccess(res, pitch, 200, "Product receipt confirmed. You can now publish your review.");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * GET /pitches/:id/shipment
    * Get the sample shipment for a pitch (brand owner or target expert).
    */

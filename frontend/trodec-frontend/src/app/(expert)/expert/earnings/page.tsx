@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, TrendingUp, Clock, CheckCircle, Banknote, Plus, ArrowDownToLine } from "lucide-react";
+import { Loader2, TrendingUp, Clock, CheckCircle, Banknote, Plus, ArrowDownToLine, Hourglass } from "lucide-react";
 import { toast } from "sonner";
 import {
   getMyCommissions, getMyStats, getBankAccounts, saveBankAccount,
@@ -16,6 +16,7 @@ import {
 
 const statusColor: Record<string, string> = {
   pending: "border-yellow-500/30 text-yellow-400",
+  reserved: "border-blue-500/30 text-blue-400",
   paid: "border-emerald-500/30 text-emerald-400",
   reversed: "border-red-500/30 text-red-400",
 };
@@ -114,7 +115,7 @@ export default function ExpertEarningsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-[#0b0b0b] border-[#1a1a1a]">
           <CardContent className="p-6 flex items-center gap-4">
             <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
@@ -132,7 +133,7 @@ export default function ExpertEarningsPage() {
               <Clock className="h-5 w-5 text-yellow-500" />
             </div>
             <div>
-              <p className="text-xs text-zinc-500">Pending Payout</p>
+              <p className="text-xs text-zinc-500">Available to Withdraw</p>
               <p className="text-2xl font-bold">₹{stats?.pendingPayout.toFixed(2) ?? "0.00"}</p>
             </div>
           </CardContent>
@@ -140,7 +141,18 @@ export default function ExpertEarningsPage() {
         <Card className="bg-[#0b0b0b] border-[#1a1a1a]">
           <CardContent className="p-6 flex items-center gap-4">
             <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-              <CheckCircle className="h-5 w-5 text-blue-500" />
+              <Hourglass className="h-5 w-5 text-blue-500" />
+            </div>
+            <div>
+              <p className="text-xs text-zinc-500">In Withdrawal</p>
+              <p className="text-2xl font-bold">₹{stats?.inWithdrawal.toFixed(2) ?? "0.00"}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-[#0b0b0b] border-[#1a1a1a]">
+          <CardContent className="p-6 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
+              <CheckCircle className="h-5 w-5 text-purple-500" />
             </div>
             <div>
               <p className="text-xs text-zinc-500">Paid Out</p>
@@ -171,7 +183,7 @@ export default function ExpertEarningsPage() {
                   <p className="font-semibold text-emerald-400">₹{stats?.pendingPayout.toFixed(2)} available for withdrawal</p>
                   <p className="text-xs text-zinc-500 mt-0.5">Minimum withdrawal: ₹100</p>
                 </div>
-                <Button onClick={() => setActiveTab("withdrawals")} className="bg-emerald-600 hover:bg-emerald-500 text-white gap-2">
+                <Button onClick={() => { setWithdrawAmount(String(stats?.pendingPayout ?? "")); setActiveTab("withdrawals"); }} className="bg-emerald-600 hover:bg-emerald-500 text-white gap-2">
                   <ArrowDownToLine className="w-4 h-4" /> Withdraw
                 </Button>
               </CardContent>
@@ -201,7 +213,7 @@ export default function ExpertEarningsPage() {
                         <p className="text-lg font-bold text-emerald-400">+₹{Number(c.expertPayout).toFixed(2)}</p>
                         <p className="text-xs text-zinc-500">your cut</p>
                       </div>
-                      <Badge variant="outline" className={`capitalize ${statusColor[c.status]}`}>{c.status}</Badge>
+                      <Badge variant="outline" className={`capitalize ${statusColor[c.status]}`}>{c.status === "reserved" ? "in withdrawal" : c.status}</Badge>
                     </div>
                   </CardContent>
                 </Card>
@@ -246,7 +258,7 @@ export default function ExpertEarningsPage() {
                     <Input type="number" min={100} max={stats?.pendingPayout ?? 0} placeholder="Min ₹100"
                       value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)}
                       className="bg-[#111] border-zinc-700 text-white" />
-                    <p className="text-xs text-zinc-500">Available: ₹{stats?.pendingPayout.toFixed(2) ?? "0.00"}</p>
+                    <p className="text-xs text-zinc-500">Available: ₹{stats?.pendingPayout.toFixed(2) ?? "0.00"} · Actual payout rounds up to cover whole commissions</p>
                   </div>
                   <Button type="submit" disabled={requesting || !withdrawAmount || Number(withdrawAmount) < 100}
                     className="bg-white text-black hover:bg-zinc-200 w-full">

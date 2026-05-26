@@ -489,7 +489,7 @@ class LogisticsService {
     const shipment = toShipment(shipmentRow as ShipmentRow);
 
     if (shipment.orderId) {
-      const orderStatusMap: Partial<Record<ShipmentStatus, string>> = {
+      const orderStatusMap: Partial<Record<ShipmentStatus, "shipped" | "delivered" | "cancelled">> = {
         SHIPPED: "shipped",
         DELIVERED: "delivered",
         RETURNED: "cancelled",
@@ -497,7 +497,13 @@ class LogisticsService {
       };
       const newOrderStatus = orderStatusMap[status];
       if (newOrderStatus) {
-        await supabaseAdmin.from("orders").update({ status: newOrderStatus }).eq("id", shipment.orderId);
+        // Use lazy import to avoid circular dep (order.service imports logistics.service)
+        // Going through orderService ensures hooks fire: commission on delivery, refund on cancel
+        import("./order.service").then(({ orderService }) =>
+          orderService.updateOrderStatus(shipment.orderId!, newOrderStatus).catch((err) =>
+            logger.error("Failed to sync order status from shipment webhook", { orderId: shipment.orderId, newOrderStatus, err })
+          )
+        );
       }
     }
 

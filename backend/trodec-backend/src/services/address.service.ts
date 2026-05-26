@@ -16,6 +16,7 @@ export interface Address {
   country: string;
   isDefaultShipping: boolean;
   isDefaultBilling: boolean;
+  isWarehouse: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -35,6 +36,7 @@ export interface AddressRow {
   is_default: boolean;    // legacy column
   is_default_shipping: boolean;
   is_default_billing: boolean;
+  is_warehouse: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -54,6 +56,7 @@ export function toAddress(row: AddressRow): Address {
     country: row.country,
     isDefaultShipping: row.is_default_shipping,
     isDefaultBilling: row.is_default_billing,
+    isWarehouse: row.is_warehouse ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -71,6 +74,7 @@ interface CreateAddressData {
   country: string;
   isDefaultShipping?: boolean;
   isDefaultBilling?: boolean;
+  isWarehouse?: boolean;
 }
 
 interface UpdateAddressData {
@@ -84,6 +88,7 @@ interface UpdateAddressData {
   country?: string;
   isDefaultShipping?: boolean;
   isDefaultBilling?: boolean;
+  isWarehouse?: boolean;
 }
 
 class AddressService {
@@ -103,6 +108,7 @@ class AddressService {
       country,
       isDefaultShipping = false,
       isDefaultBilling = false,
+      isWarehouse = false,
     } = data;
 
     // If setting as default, unset other defaults
@@ -111,6 +117,9 @@ class AddressService {
     }
     if (isDefaultBilling) {
       await this.unsetDefaultBilling(userId);
+    }
+    if (isWarehouse) {
+      await this.unsetWarehouse(userId);
     }
 
     const { data: addressRow, error } = await supabaseAdmin
@@ -129,6 +138,7 @@ class AddressService {
         is_default_shipping: isDefaultShipping,
         is_default_billing: isDefaultBilling,
         is_default: isDefaultShipping, // legacy NOT NULL column
+        is_warehouse: isWarehouse,
       })
       .select()
       .single();
@@ -284,6 +294,12 @@ class AddressService {
         await this.unsetDefaultBilling(userId);
       }
     }
+    if (data.isWarehouse !== undefined) {
+      updateData.is_warehouse = data.isWarehouse;
+      if (data.isWarehouse) {
+        await this.unsetWarehouse(userId);
+      }
+    }
 
     if (Object.keys(updateData).length === 0) {
       throw ApiError.badRequest("No fields to update");
@@ -345,11 +361,41 @@ class AddressService {
    * Set default billing address
    */
   async setDefaultBillingAddress(addressId: string, userId: string): Promise<Address> {
-    // First, unset all other default billing addresses
     await this.unsetDefaultBilling(userId);
-
-    // Then set this one as default
     return this.updateAddress(addressId, userId, { isDefaultBilling: true });
+  }
+
+  /**
+   * Set warehouse address for an expert and update has_warehouse_address flag
+   */
+  async setWarehouseAddress(addressId: string, userId: string): Promise<Address> {
+    await this.unsetWarehouse(userId);
+    const address = await this.updateAddress(addressId, userId, { isWarehouse: true });
+    // Update expert eligibility flag
+    await supabaseAdmin
+      .from("expert_details")
+      .update({ has_warehouse_address: true })
+      .eq("id", userId);
+    return address;
+  }
+
+  /**
+   * Get warehouse address for an expert
+   */
+  async getWarehouseAddress(userId: string): Promise<Address | null> {
+    const { data: addressRow, error } = await supabaseAdmin
+      .from("addresses")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("is_warehouse", true)
+      .maybeSingle();
+
+    if (error) {
+      logger.error("Failed to fetch warehouse address", { error: error.message, userId });
+      throw ApiError.internal("Failed to fetch warehouse address");
+    }
+
+    return addressRow ? toAddress(addressRow as AddressRow) : null;
   }
 
   /**
@@ -372,6 +418,17 @@ class AddressService {
       .update({ is_default_billing: false })
       .eq("user_id", userId)
       .eq("is_default_billing", true);
+  }
+
+  /**
+   * Unset warehouse flag for all addresses of a user
+   */
+  private async unsetWarehouse(userId: string): Promise<void> {
+    await supabaseAdmin
+      .from("addresses")
+      .update({ is_warehouse: false })
+      .eq("user_id", userId)
+      .eq("is_warehouse", true);
   }
 }
 

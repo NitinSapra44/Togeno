@@ -74,6 +74,8 @@ function CheckoutContent() {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<string>("");
   const [orderNumber, setOrderNumber] = useState("");
+  // Tracks a pending order created but not yet paid — reused on retry to prevent duplicates
+  const pendingOrderRef = useRef<{ id: string; orderNumber: string } | null>(null);
   const [showAddressForm, setShowAddressForm] = useState(false);
 
   const [addressForm, setAddressForm] = useState({
@@ -174,12 +176,20 @@ function CheckoutContent() {
     try {
       setPlacing(true);
 
-      const order = await OrderService.createOrder({
-        shippingAddressId: selectedAddress,
-        billingAddressId: selectedAddress,
-        items: items.map((i) => ({ productId: i.id, quantity: i.quantity, selectedSize: i.selectedSize ?? null })),
-        sourcePostId: sourcePostId ?? null,
-      });
+      // Reuse an existing pending order on retry to prevent duplicate order creation
+      let order = pendingOrderRef.current
+        ? await OrderService.getOrderById(pendingOrderRef.current.id).catch(() => null)
+        : null;
+
+      if (!order || order.status !== "pending") {
+        order = await OrderService.createOrder({
+          shippingAddressId: selectedAddress,
+          billingAddressId: selectedAddress,
+          items: items.map((i) => ({ productId: i.id, quantity: i.quantity, selectedSize: i.selectedSize ?? null })),
+          sourcePostId: sourcePostId ?? null,
+        });
+        pendingOrderRef.current = { id: order.id, orderNumber: order.orderNumber ?? order.id.slice(0, 8) };
+      }
 
       const paymentInit = await OrderService.initiatePayment(order.id);
 
@@ -226,6 +236,7 @@ function CheckoutContent() {
             });
             advanceTo('Success');
 
+            pendingOrderRef.current = null;
             setOrderNumber(oNum);
             clearCart();
             toast.success("Payment successful!");

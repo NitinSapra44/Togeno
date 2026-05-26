@@ -20,6 +20,8 @@ import {
   Loader2,
   Shield,
   TrendingUp,
+  Lightbulb,
+  Truck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LogoutConfirmModal } from "@/components/ui/logout-confirm-modal";
@@ -30,6 +32,8 @@ const sidebarItems = [
   { href: "/admin/experts", label: "Experts", icon: Award },
   { href: "/admin/users", label: "All Users", icon: Users },
   { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
+  { href: "/admin/shipments", label: "Shipments", icon: Truck },
+  { href: "/admin/pitches", label: "Pitches", icon: Lightbulb },
   { href: "/admin/products", label: "Products", icon: Package },
   { href: "/admin/communities", label: "Communities", icon: MessageSquare },
   { href: "/admin/commissions", label: "Commissions", icon: TrendingUp },

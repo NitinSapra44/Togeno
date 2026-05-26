@@ -141,6 +141,23 @@ export const OrderService = {
       throw new Error(getErrorMessage(error));
     }
   },
+
+  async getExpertOrders(params?: { page?: number; limit?: number; status?: string }): Promise<{
+    orders: Order[];
+    total: number;
+    stats: { totalOrders: number; totalRevenue: number; topProducts: Array<{ productId: string; productName: string; count: number }> };
+  }> {
+    try {
+      const response = await api.get<ApiSuccessResponse<{
+        orders: Order[];
+        total: number;
+        stats: { totalOrders: number; totalRevenue: number; topProducts: Array<{ productId: string; productName: string; count: number }> };
+      }>>('/orders/expert/dashboard', { params });
+      return response.data.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error));
+    }
+  },
 };
 
 export default OrderService;

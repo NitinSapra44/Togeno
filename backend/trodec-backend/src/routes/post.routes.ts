@@ -6,6 +6,7 @@ import {
   authenticate,
   optionalAuth,
   requireRole,
+  requireVerifiedExpert,
   validateBody,
   validateQuery,
 } from "@/middleware";
@@ -73,6 +74,7 @@ router.post(
   "/",
   authenticate,
   requireRole("expert"),
+  requireVerifiedExpert,
   validateBody(createPostSchema),
   postController.createPost
 );

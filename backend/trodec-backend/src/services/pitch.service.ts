@@ -235,6 +235,17 @@ class PitchService {
       throw ApiError.badRequest("This expert is not a member of the selected community");
     }
 
+    // Expert must have a warehouse address set up to receive pitches
+    const { data: expertWarehouse } = await supabaseAdmin
+      .from("expert_details")
+      .select("has_warehouse_address")
+      .eq("id", expertId)
+      .maybeSingle();
+
+    if (!expertWarehouse?.has_warehouse_address) {
+      throw ApiError.badRequest("This expert has not set up a warehouse address and cannot receive pitches");
+    }
+
     // Check for existing pending pitch for same product/expert combination
     const { data: existingPitch } = await supabaseAdmin
       .from("pitches")
@@ -534,12 +545,22 @@ class PitchService {
             .eq("user_id", updatedPitch.brandId)
             .eq("is_default_shipping", true)
             .maybeSingle(),
+          // Use expert's warehouse address (preferred) or fall back to default shipping
           supabaseAdmin
             .from("addresses")
             .select("full_name, phone_number, address_line1, address_line2, city, state, postal_code, country")
             .eq("user_id", updatedPitch.expertId)
-            .eq("is_default_shipping", true)
-            .maybeSingle(),
+            .eq("is_warehouse", true)
+            .maybeSingle()
+            .then(async (warehouseResult) => {
+              if (warehouseResult.data) return warehouseResult;
+              return supabaseAdmin
+                .from("addresses")
+                .select("full_name, phone_number, address_line1, address_line2, city, state, postal_code, country")
+                .eq("user_id", updatedPitch.expertId)
+                .eq("is_default_shipping", true)
+                .maybeSingle();
+            }),
         ]);
 
         const fromAddress = brandAddrRow
@@ -601,6 +622,49 @@ class PitchService {
   }
 
   /**
+   * Expert manually confirms product receipt (pitch: shipped → delivered)
+   * Only after this can the expert publish a review/post for the pitch.
+   */
+  async confirmReceipt(pitchId: string, expertId: string): Promise<Pitch> {
+    const pitch = await this.getPitch(pitchId);
+    if (!pitch) {
+      throw ApiError.notFound("Pitch not found");
+    }
+
+    if (pitch.expertId !== expertId) {
+      throw ApiError.forbidden("You can only confirm receipt for your own pitches");
+    }
+
+    if (pitch.status !== "shipped") {
+      throw ApiError.badRequest("Can only confirm receipt for pitches with status 'shipped'");
+    }
+
+    const { data: pitchRow, error } = await supabaseAdmin
+      .from("pitches")
+      .update({
+        status: "delivered",
+        delivered_at: new Date().toISOString(),
+      })
+      .eq("id", pitchId)
+      .select()
+      .single();
+
+    if (error) {
+      logger.error("Failed to confirm receipt", { error: error.message, pitchId });
+      throw ApiError.internal("Failed to confirm receipt");
+    }
+
+    // Also update the linked shipment status if one exists
+    await supabaseAdmin
+      .from("shipments")
+      .update({ status: "DELIVERED", delivered_at: new Date().toISOString() })
+      .eq("pitch_id", pitchId)
+      .in("status", ["PENDING", "IN_TRANSIT", "OUT_FOR_DELIVERY"]);
+
+    return toPitch(pitchRow as PitchRow);
+  }
+
+  /**
    * Link a post to a pitch (called when expert creates post for a pitch)
    */
   async linkPostToPitch(
@@ -617,8 +681,8 @@ class PitchService {
       throw ApiError.forbidden("You can only link posts to your own pitches");
     }
 
-    if (pitch.status !== "accepted") {
-      throw ApiError.badRequest("Can only link posts to accepted pitches");
+    if (pitch.status !== "delivered") {
+      throw ApiError.badRequest("You can only post a review after confirming product receipt");
     }
 
     const { data: pitchRow, error } = await supabaseAdmin

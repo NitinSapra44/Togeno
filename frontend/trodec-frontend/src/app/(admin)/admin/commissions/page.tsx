@@ -13,6 +13,7 @@ import {
 
 const commissionStatusColor: Record<string, string> = {
   pending: "border-yellow-500/30 text-yellow-400 bg-yellow-500/5",
+  reserved: "border-blue-500/30 text-blue-400 bg-blue-500/5",
   paid: "border-emerald-500/30 text-emerald-400 bg-emerald-500/5",
   reversed: "border-red-500/30 text-red-400 bg-red-500/5",
 };
@@ -118,12 +119,13 @@ export default function AdminCommissionsPage() {
       </div>
 
       {/* Platform Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {[
           { label: "Total Revenue", value: platformStats?.totalRevenue ?? 0, icon: TrendingUp, color: "text-emerald-500", bg: "bg-emerald-500/10" },
           { label: "Platform Margin", value: platformStats?.totalPlatformMargin ?? 0, icon: DollarSign, color: "text-blue-500", bg: "bg-blue-500/10" },
           { label: "Expert Payouts", value: platformStats?.totalExpertPayouts ?? 0, icon: Users, color: "text-purple-500", bg: "bg-purple-500/10" },
-          { label: "Pending Payouts", value: platformStats?.pendingPayouts ?? 0, icon: Clock, color: "text-yellow-500", bg: "bg-yellow-500/10" },
+          { label: "Available", value: platformStats?.pendingPayouts ?? 0, icon: Clock, color: "text-yellow-500", bg: "bg-yellow-500/10" },
+          { label: "In Withdrawal", value: platformStats?.inWithdrawal ?? 0, icon: ArrowDownToLine, color: "text-orange-500", bg: "bg-orange-500/10" },
           { label: "Paid Out", value: platformStats?.paidPayouts ?? 0, icon: CheckCircle, color: "text-emerald-500", bg: "bg-emerald-500/10" },
         ].map(stat => (
           <Card key={stat.label} className="bg-[#0b0b0b] border-[#1a1a1a]">
@@ -175,12 +177,17 @@ export default function AdminCommissionsPage() {
                   <p className="text-xs text-zinc-600">{new Date(c.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Badge variant="outline" className={`capitalize ${commissionStatusColor[c.status]}`}>{c.status}</Badge>
+                  <Badge variant="outline" className={`capitalize ${commissionStatusColor[c.status]}`}>
+                    {c.status === "reserved" ? "in withdrawal" : c.status}
+                  </Badge>
                   {c.status === "pending" && (
                     <Button size="sm" onClick={() => setPayModal({ id: c.id, type: "commission" })}
                       className="h-7 text-xs bg-emerald-600 hover:bg-emerald-500 text-white">
                       Mark Paid
                     </Button>
+                  )}
+                  {c.status === "reserved" && (
+                    <span className="text-xs text-zinc-500">Pay via Withdrawals tab</span>
                   )}
                 </div>
               </CardContent>
@@ -285,7 +292,7 @@ export default function AdminCommissionsPage() {
               <div className="space-y-2">
                 <label className="text-xs text-zinc-400">Reason for rejection</label>
                 <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="e.g. Invalid bank details"
-                  className="w-full bg-[#111] border border-zinc-700 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-red-500 min-h-[80px] resize-none" />
+                  className="w-full bg-[#111] border border-zinc-700 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-red-500 min-h-20 resize-none" />
               </div>
               <div className="flex gap-3 justify-end">
                 <Button variant="outline" onClick={() => { setRejectModal(null); setRejectReason(""); }} className="border-zinc-700">Cancel</Button>

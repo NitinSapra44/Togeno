@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { adminService } from '../services/admin.service';
 import { userService } from '../services/user.service';
 import { orderService } from '../services/order.service';
+import { notificationService } from '../services/notification.service';
 import { ApiError } from '../utils/errors';
 import { sendSuccess } from '../utils/response';
 
@@ -144,8 +145,22 @@ class AdminController {
       const role = profile.role as 'expert' | 'brand_admin';
       if (approved) {
         await adminService.approveUser(id, role);
+        const roleLabel = role === 'expert' ? 'Expert' : 'Brand';
+        notificationService.create(
+          id,
+          'account.approved',
+          `${roleLabel} Account Approved`,
+          `Your ${roleLabel.toLowerCase()} account has been approved. You can now access all ${roleLabel.toLowerCase()} features.`,
+        ).catch(() => {});
       } else {
         await adminService.rejectUser(id, role);
+        const roleLabel = role === 'expert' ? 'Expert' : 'Brand';
+        notificationService.create(
+          id,
+          'account.rejected',
+          `${roleLabel} Account Not Approved`,
+          `Your ${roleLabel.toLowerCase()} account application was not approved. Please contact support for more information.`,
+        ).catch(() => {});
       }
       sendSuccess(res, { message: approved ? 'User approved' : 'User rejected' });
     } catch (error) {
@@ -197,6 +212,40 @@ class AdminController {
         status as 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
       );
       sendSuccess(res, order, 200, `Order status updated to ${status}`);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /admin/pitches
+   * List all pitches with brand/expert/product/community info.
+   */
+  async listAllPitches(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const page = req.query['page'] ? parseInt(req.query['page'] as string) : 1;
+      const limit = req.query['limit'] ? parseInt(req.query['limit'] as string) : 20;
+      const status = req.query['status'] as string | undefined;
+
+      const result = await adminService.listAllPitches({ page, limit, status });
+      sendSuccess(res, result, 200, 'Pitches fetched');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /admin/shipments
+   * List all shipments with order/pitch info.
+   */
+  async listAllShipments(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const page = req.query['page'] ? parseInt(req.query['page'] as string) : 1;
+      const limit = req.query['limit'] ? parseInt(req.query['limit'] as string) : 20;
+      const status = req.query['status'] as string | undefined;
+
+      const result = await adminService.listAllShipments({ page, limit, status });
+      sendSuccess(res, result, 200, 'Shipments fetched');
     } catch (error) {
       next(error);
     }

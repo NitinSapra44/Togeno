@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { orderController } from "@/controllers/order.controller";
-import { authenticate, validateBody, validateQuery } from "@/middleware";
+import { authenticate, validateBody, validateQuery, requireRole } from "@/middleware";
 import {
   createOrderSchema,
   updateOrderStatusSchema,
@@ -51,6 +51,12 @@ router.get(
  * Validate a promo code (must be before /:id)
  */
 router.post("/validate-promo", authenticate, orderController.validatePromo);
+
+/**
+ * GET /orders/expert/dashboard
+ * Get orders attributed to the logged-in expert (MUST come before /:id)
+ */
+router.get("/expert/dashboard", authenticate, requireRole("expert"), orderController.getExpertOrders);
 
 /**
  * GET /orders/:id

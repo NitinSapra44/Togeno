@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getWarehouseAddress } from "@/services/address.service";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,8 @@ import {
   X,
   Calendar,
   Megaphone,
+  AlertTriangle,
+  Warehouse,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
@@ -29,9 +32,13 @@ export default function ExpertPitchesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [hasWarehouse, setHasWarehouse] = useState<boolean | null>(null);
 
   useEffect(() => {
     loadPitches();
+    getWarehouseAddress()
+      .then((addr) => setHasWarehouse(!!addr))
+      .catch(() => setHasWarehouse(false));
   }, []);
 
   async function loadPitches() {
@@ -95,6 +102,22 @@ export default function ExpertPitchesPage() {
           Review and respond to product pitches from brands
         </p>
       </div>
+
+      {/* Warehouse Warning */}
+      {hasWarehouse === false && (
+        <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
+          <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-amber-300 font-semibold text-sm">Warehouse address not set</p>
+            <p className="text-zinc-400 text-xs mt-0.5">
+              You won't be eligible to receive brand pitches until you configure a warehouse address.{" "}
+              <a href="/expert/profile" className="text-emerald-400 hover:underline inline-flex items-center gap-1">
+                <Warehouse className="w-3 h-3" /> Set up warehouse
+              </a>
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative max-w-md">

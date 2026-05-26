@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "../config";
 import { ApiError } from "../utils";
 import { logger } from "../utils/logger";
+import { notificationService } from "./notification.service";
 
 // ---------------------------------------------------------------------------
 // Commission slabs
@@ -41,8 +42,9 @@ export interface CommissionRow {
   total_commission: number;
   expert_payout: number;
   platform_margin: number;
-  status: "pending" | "paid" | "reversed";
+  status: "pending" | "reserved" | "paid" | "reversed";
   reversed_at: string | null;
+  withdrawal_request_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -55,8 +57,9 @@ export interface Commission {
   totalCommission: number;
   expertPayout: number;
   platformMargin: number;
-  status: "pending" | "paid" | "reversed";
+  status: "pending" | "reserved" | "paid" | "reversed";
   reversedAt: string | null;
+  withdrawalRequestId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -72,6 +75,7 @@ function toCommission(row: CommissionRow): Commission {
     platformMargin: row.platform_margin,
     status: row.status,
     reversedAt: row.reversed_at,
+    withdrawalRequestId: row.withdrawal_request_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -214,22 +218,24 @@ class CommissionService {
       throw ApiError.internal("Failed to fetch commissions");
     }
 
-    // Stats: total earned, pending, paid
+    // Stats: fetch all non-reversed commissions and bucket by status
     const { data: allRows } = await supabaseAdmin
       .from("commissions")
       .select("expert_payout, status")
       .eq("expert_id", expertId)
       .neq("status", "reversed");
 
-    const stats: ExpertStats = { totalEarned: 0, pendingPayout: 0, paidOut: 0 };
+    const stats: ExpertStats = { totalEarned: 0, pendingPayout: 0, inWithdrawal: 0, paidOut: 0 };
     for (const row of allRows ?? []) {
       const payout = Number((row as any).expert_payout ?? 0);
       stats.totalEarned += payout;
       if ((row as any).status === "pending") stats.pendingPayout += payout;
+      if ((row as any).status === "reserved") stats.inWithdrawal += payout;
       if ((row as any).status === "paid") stats.paidOut += payout;
     }
     stats.totalEarned = round2(stats.totalEarned);
     stats.pendingPayout = round2(stats.pendingPayout);
+    stats.inWithdrawal = round2(stats.inWithdrawal);
     stats.paidOut = round2(stats.paidOut);
 
     return {
@@ -264,7 +270,7 @@ class CommissionService {
       throw ApiError.internal("Failed to fetch commissions");
     }
 
-    // Platform stats
+    // Platform stats across all non-reversed commissions
     const { data: allRows } = await supabaseAdmin
       .from("commissions")
       .select("total_commission, expert_payout, platform_margin, status")
@@ -275,6 +281,7 @@ class CommissionService {
       totalExpertPayouts: 0,
       totalPlatformMargin: 0,
       pendingPayouts: 0,
+      inWithdrawal: 0,
       paidPayouts: 0,
     };
     for (const row of allRows ?? []) {
@@ -282,6 +289,7 @@ class CommissionService {
       platformStats.totalExpertPayouts += Number((row as any).expert_payout ?? 0);
       platformStats.totalPlatformMargin += Number((row as any).platform_margin ?? 0);
       if ((row as any).status === "pending") platformStats.pendingPayouts += Number((row as any).expert_payout ?? 0);
+      if ((row as any).status === "reserved") platformStats.inWithdrawal += Number((row as any).expert_payout ?? 0);
       if ((row as any).status === "paid") platformStats.paidPayouts += Number((row as any).expert_payout ?? 0);
     }
     Object.keys(platformStats).forEach((k) => {
@@ -296,9 +304,24 @@ class CommissionService {
   }
 
   /**
-   * Mark a commission as paid (admin only).
+   * Mark a single commission as paid (admin only, for commissions not linked to a withdrawal).
+   * Commissions with status 'reserved' must be paid through the withdrawal flow instead.
    */
   async markAsPaid(commissionId: string): Promise<Commission> {
+    const { data: existing, error: fetchError } = await supabaseAdmin
+      .from("commissions")
+      .select("status")
+      .eq("id", commissionId)
+      .single();
+
+    if (fetchError || !existing) throw ApiError.notFound("Commission not found");
+
+    if ((existing as any).status === "reserved") {
+      throw ApiError.badRequest(
+        "This commission is part of a pending withdrawal. Pay it through the Withdrawals tab."
+      );
+    }
+
     const { data, error } = await supabaseAdmin
       .from("commissions")
       .update({ status: "paid" })
@@ -371,10 +394,29 @@ class CommissionService {
   }): Promise<WithdrawalRequest> {
     if (data.amount < 100) throw ApiError.badRequest("Minimum withdrawal amount is ₹100");
 
-    // Check available balance (pending commissions)
-    const { stats } = await this.getExpertCommissions(expertId);
-    if (data.amount > stats.pendingPayout) {
-      throw ApiError.badRequest(`Insufficient balance. Available: ₹${stats.pendingPayout}`);
+    // Fetch all pending commissions for this expert, oldest first
+    const { data: pendingCommissions, error: fetchError } = await supabaseAdmin
+      .from("commissions")
+      .select("id, expert_payout")
+      .eq("expert_id", expertId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: true });
+
+    if (fetchError) throw ApiError.internal("Failed to fetch commissions");
+
+    // Greedily select commissions until their sum covers the requested amount.
+    // The actual withdrawal amount equals the sum of selected commissions
+    // (may be slightly higher than requested to avoid splitting a commission).
+    let accumulated = 0;
+    const selectedIds: string[] = [];
+    for (const c of pendingCommissions ?? []) {
+      if (accumulated >= data.amount) break;
+      accumulated = round2(accumulated + Number(c.expert_payout));
+      selectedIds.push(c.id);
+    }
+
+    if (selectedIds.length === 0 || accumulated < data.amount) {
+      throw ApiError.badRequest(`Insufficient balance. Available: ₹${accumulated}`);
     }
 
     // Check no pending withdrawal already exists
@@ -387,12 +429,13 @@ class CommissionService {
 
     if (existing) throw ApiError.badRequest("You already have a pending withdrawal request");
 
+    // Create withdrawal for the actual accumulated amount
     const { data: row, error } = await supabaseAdmin
       .from("withdrawal_requests")
       .insert({
         expert_id: expertId,
         bank_account_id: data.bankAccountId,
-        amount: data.amount,
+        amount: accumulated,
         status: "pending",
       })
       .select()
@@ -403,6 +446,20 @@ class CommissionService {
       throw ApiError.internal("Failed to create withdrawal request");
     }
 
+    // Reserve the selected commissions so they can't be withdrawn again
+    const { error: reserveError } = await supabaseAdmin
+      .from("commissions")
+      .update({ status: "reserved", withdrawal_request_id: row.id })
+      .in("id", selectedIds);
+
+    if (reserveError) {
+      // Roll back the withdrawal request we just created
+      await supabaseAdmin.from("withdrawal_requests").delete().eq("id", row.id);
+      logger.error("Failed to reserve commissions, rolled back withdrawal", { expertId, error: reserveError.message });
+      throw ApiError.internal("Failed to create withdrawal request");
+    }
+
+    logger.info("Withdrawal requested", { expertId, amount: accumulated, commissionCount: selectedIds.length });
     return toWithdrawalRequest(row as WithdrawalRequestRow);
   }
 
@@ -470,7 +527,48 @@ class CommissionService {
 
     if (error) throw ApiError.internal("Failed to process withdrawal");
 
-    return toWithdrawalRequest(row as WithdrawalRequestRow);
+    // Sync commission statuses to match the withdrawal outcome
+    if (action === "paid") {
+      // Mark all reserved commissions for this withdrawal as paid
+      await supabaseAdmin
+        .from("commissions")
+        .update({ status: "paid" })
+        .eq("withdrawal_request_id", withdrawalId);
+
+      logger.info("Commissions marked paid via withdrawal", { withdrawalId });
+    } else if (action === "rejected") {
+      // Release reserved commissions back to pending so expert can withdraw again
+      await supabaseAdmin
+        .from("commissions")
+        .update({ status: "pending", withdrawal_request_id: null })
+        .eq("withdrawal_request_id", withdrawalId);
+
+      logger.info("Commissions released back to pending after withdrawal rejection", { withdrawalId });
+    }
+
+    const withdrawal = toWithdrawalRequest(row as WithdrawalRequestRow);
+
+    // Notify the expert about the outcome
+    const notifMap: Partial<Record<typeof action, { title: string; message: string }>> = {
+      approved: {
+        title: "Withdrawal Approved",
+        message: `Your withdrawal of ₹${withdrawal.amount.toFixed(2)} has been approved and will be processed shortly.`,
+      },
+      paid: {
+        title: "Withdrawal Paid",
+        message: `₹${withdrawal.amount.toFixed(2)} has been transferred to your bank account.${data?.transactionRef ? ` Reference: ${data.transactionRef}` : ""}`,
+      },
+      rejected: {
+        title: "Withdrawal Rejected",
+        message: `Your withdrawal of ₹${withdrawal.amount.toFixed(2)} was rejected.${data?.rejectionReason ? ` Reason: ${data.rejectionReason}` : ""} Your balance has been restored.`,
+      },
+    };
+    const notif = notifMap[action];
+    if (notif) {
+      notificationService.create(withdrawal.expertId, `withdrawal.${action}`, notif.title, notif.message, { withdrawalId }).catch(() => {});
+    }
+
+    return withdrawal;
   }
 }
 
@@ -481,6 +579,7 @@ class CommissionService {
 export interface ExpertStats {
   totalEarned: number;
   pendingPayout: number;
+  inWithdrawal: number;
   paidOut: number;
 }
 
@@ -489,6 +588,7 @@ export interface PlatformStats {
   totalExpertPayouts: number;
   totalPlatformMargin: number;
   pendingPayouts: number;
+  inWithdrawal: number;
   paidPayouts: number;
 }
 

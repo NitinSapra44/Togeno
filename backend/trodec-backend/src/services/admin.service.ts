@@ -404,6 +404,70 @@ class AdminService {
     };
   }
 
+  async listAllPitches(options: { page?: number; limit?: number; status?: string } = {}) {
+    const { page = 1, limit = 20, status } = options;
+    const offset = (page - 1) * limit;
+
+    let query = supabaseAdmin
+      .from('pitches')
+      .select(`
+        *,
+        brand:brand_id (id, brand_name, logo_url),
+        expert:expert_id (id, full_name, email),
+        product:product_id (id, name, slug),
+        community:community_id (id, name, slug)
+      `, { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      logger.error('Failed to list all pitches', { error: error.message });
+      throw ApiError.internal('Failed to fetch pitches');
+    }
+
+    return {
+      data: data || [],
+      pagination: { page, limit, total: count || 0 },
+    };
+  }
+
+  async listAllShipments(options: { page?: number; limit?: number; status?: string } = {}) {
+    const { page = 1, limit = 20, status } = options;
+    const offset = (page - 1) * limit;
+
+    let query = supabaseAdmin
+      .from('shipments')
+      .select(`
+        *,
+        order:order_id (id, order_number, user_id),
+        pitch:pitch_id (id, status)
+      `, { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      logger.error('Failed to list all shipments', { error: error.message });
+      throw ApiError.internal('Failed to fetch shipments');
+    }
+
+    return {
+      data: data || [],
+      pagination: { page, limit, total: count || 0 },
+    };
+  }
+
   async deleteProduct(productId: string): Promise<void> {
     const { error } = await supabaseAdmin
       .from('products')

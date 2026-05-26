@@ -86,4 +86,16 @@ router.delete('/products/:id', adminController.deleteProduct.bind(adminControlle
  */
 router.patch('/orders/:id/status', adminController.updateOrderStatus.bind(adminController));
 
+/**
+ * GET /admin/pitches
+ * List all pitches with brand/expert/product info.
+ */
+router.get('/pitches', adminController.listAllPitches.bind(adminController));
+
+/**
+ * GET /admin/shipments
+ * List all shipments with order/pitch info and tracking data.
+ */
+router.get('/shipments', adminController.listAllShipments.bind(adminController));
+
 export default router;

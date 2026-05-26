@@ -17,6 +17,7 @@ import {
   TrendingUp,
   RefreshCw,
   Bell,
+  ShoppingBag,
 } from "lucide-react";
 import { useNotifications } from "@/hooks/useNotifications";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,7 @@ const sidebarItems = [
   { href: "/expert/communities", label: "Communities", icon: Users },
   { href: "/expert/posts", label: "Posts", icon: MessageSquare },
   { href: "/expert/pitches", label: "Pitches", icon: Lightbulb },
+  { href: "/expert/orders", label: "Orders", icon: ShoppingBag },
   { href: "/expert/earnings", label: "Earnings", icon: TrendingUp },
   { href: "/expert/profile", label: "Profile", icon: User },
 ];

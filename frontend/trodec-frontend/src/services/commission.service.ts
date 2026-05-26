@@ -8,14 +8,16 @@ export interface Commission {
   totalCommission: number;
   expertPayout: number;
   platformMargin: number;
-  status: 'pending' | 'paid' | 'reversed';
+  status: 'pending' | 'reserved' | 'paid' | 'reversed';
   reversedAt: string | null;
+  withdrawalRequestId: string | null;
   createdAt: string;
 }
 
 export interface ExpertStats {
   totalEarned: number;
   pendingPayout: number;
+  inWithdrawal: number;
   paidOut: number;
 }
 
@@ -24,6 +26,7 @@ export interface PlatformStats {
   totalExpertPayouts: number;
   totalPlatformMargin: number;
   pendingPayouts: number;
+  inWithdrawal: number;
   paidPayouts: number;
 }
 

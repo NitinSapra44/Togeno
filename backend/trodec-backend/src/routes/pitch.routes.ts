@@ -94,6 +94,17 @@ router.post(
   pitchController.respondToPitch
 );
 
+/**
+ * POST /pitches/:id/confirm-receipt
+ * Expert manually confirms product has been received (marks pitch as delivered)
+ */
+router.post(
+  "/:id/confirm-receipt",
+  authenticate,
+  requireRole("expert"),
+  pitchController.confirmReceipt
+);
+
 // ============================================
 // SHARED ROUTES (Brand Admin or Expert)
 // ============================================

@@ -13,6 +13,7 @@ export interface Address {
   country: string;
   isDefaultShipping: boolean;
   isDefaultBilling: boolean;
+  isWarehouse: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -95,6 +96,24 @@ export async function setDefaultShipping(id: string): Promise<Address> {
 export async function setDefaultBilling(id: string): Promise<Address> {
   try {
     const response = await api.post<ApiSuccessResponse<Address>>(`/addresses/${id}/set-default-billing`);
+    return response.data.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
+}
+
+export async function getWarehouseAddress(): Promise<Address | null> {
+  try {
+    const response = await api.get<ApiSuccessResponse<Address | null>>('/addresses/warehouse');
+    return response.data.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
+}
+
+export async function setWarehouseAddress(id: string): Promise<Address> {
+  try {
+    const response = await api.post<ApiSuccessResponse<Address>>(`/addresses/${id}/set-warehouse`);
     return response.data.data;
   } catch (error) {
     throw new Error(getErrorMessage(error));

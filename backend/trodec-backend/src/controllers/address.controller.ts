@@ -229,12 +229,47 @@ class AddressController {
 
       const address = await addressService.setDefaultBillingAddress(id, userId);
 
-      sendSuccess(
-        res,
-        address,
-        200,
-        "Default billing address set successfully",
-      );
+      sendSuccess(res, address, 200, "Default billing address set successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /api/addresses/:id/set-warehouse
+   * Mark address as expert warehouse address (expert only)
+   */
+  async setWarehouse(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const userId = req.user!.id;
+      const id = req.params.id as string;
+
+      const address = await addressService.setWarehouseAddress(id, userId);
+
+      sendSuccess(res, address, 200, "Warehouse address set successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /api/addresses/warehouse
+   * Get expert warehouse address
+   */
+  async getWarehouse(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const userId = req.user!.id;
+      const address = await addressService.getWarehouseAddress(userId);
+
+      sendSuccess(res, address, 200, "Warehouse address fetched successfully");
     } catch (error) {
       next(error);
     }

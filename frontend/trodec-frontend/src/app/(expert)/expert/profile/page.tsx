@@ -25,8 +25,18 @@ import {
   Briefcase,
   Calendar,
   Tag,
+  Warehouse,
+  MapPin,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  getAddresses,
+  getWarehouseAddress,
+  setWarehouseAddress,
+  createAddress,
+  Address,
+} from "@/services/address.service";
 
 interface MembershipWithCommunity {
   membership: CommunityMember;
@@ -37,12 +47,54 @@ export default function ExpertProfilePage() {
   const { user, profile, expertDetails } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
   const [memberships, setMemberships] = useState<MembershipWithCommunity[]>([]);
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [warehouseAddress, setWarehouseAddressState] = useState<Address | null>(null);
+  const [warehouseLoading, setWarehouseLoading] = useState(false);
+  const [showNewAddressForm, setShowNewAddressForm] = useState(false);
+  const [newAddr, setNewAddr] = useState({ fullName: "", phoneNumber: "", addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "", country: "India" });
 
   useEffect(() => {
     getJoinedCommunities({ limit: 50 })
       .then((res) => setMemberships(res.data))
       .catch(() => {});
+    getAddresses().then(setAddresses).catch(() => {});
+    getWarehouseAddress().then(setWarehouseAddressState).catch(() => {});
   }, []);
+
+  async function handleSetWarehouse(addressId: string) {
+    setWarehouseLoading(true);
+    try {
+      const updated = await setWarehouseAddress(addressId);
+      setWarehouseAddressState(updated);
+      setAddresses((prev) => prev.map((a) => ({ ...a, isWarehouse: a.id === addressId })));
+      toast.success("Warehouse address set. You are now eligible to receive brand pitches.");
+    } catch {
+      toast.error("Failed to set warehouse address");
+    } finally {
+      setWarehouseLoading(false);
+    }
+  }
+
+  async function handleAddWarehouseAddress() {
+    if (!newAddr.fullName || !newAddr.phoneNumber || !newAddr.addressLine1 || !newAddr.city || !newAddr.state || !newAddr.postalCode) {
+      toast.error("Please fill all required fields");
+      return;
+    }
+    setWarehouseLoading(true);
+    try {
+      const created = await createAddress(newAddr);
+      const updated = await setWarehouseAddress(created.id);
+      setWarehouseAddressState(updated);
+      setAddresses((prev) => [...prev.map((a) => ({ ...a, isWarehouse: false })), updated]);
+      setShowNewAddressForm(false);
+      setNewAddr({ fullName: "", phoneNumber: "", addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "", country: "India" });
+      toast.success("Warehouse address saved. You are now eligible to receive brand pitches.");
+    } catch {
+      toast.error("Failed to save warehouse address");
+    } finally {
+      setWarehouseLoading(false);
+    }
+  }
 
   const handleSave = () => {
     setIsLoading(true);
@@ -63,9 +115,12 @@ export default function ExpertProfilePage() {
       </div>
 
       <Tabs defaultValue="general">
-        <TabsList className="bg-[#111111] border border-[#1a1a1a] p-1 rounded-xl">
+        <TabsList className="bg-[#111111] border border-[#1a1a1a] p-1 rounded-xl flex-wrap gap-1">
           <TabsTrigger value="general" className="data-[state=active]:bg-zinc-800">
             <User className="w-4 h-4 mr-2" /> General
+          </TabsTrigger>
+          <TabsTrigger value="warehouse" className="data-[state=active]:bg-zinc-800">
+            <Warehouse className="w-4 h-4 mr-2" /> Warehouse
           </TabsTrigger>
           <TabsTrigger value="activity" className="data-[state=active]:bg-zinc-800">
             <Activity className="w-4 h-4 mr-2" /> Activity
@@ -74,6 +129,128 @@ export default function ExpertProfilePage() {
             <Shield className="w-4 h-4 mr-2" /> Security
           </TabsTrigger>
         </TabsList>
+
+        {/* ================= WAREHOUSE TAB ================= */}
+        <TabsContent value="warehouse" className="space-y-6 mt-6">
+          <Card className="bg-[#0b0b0b] border-[#1a1a1a]">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Warehouse className="w-5 h-5 text-emerald-500" />
+                Warehouse Address
+              </CardTitle>
+              <p className="text-sm text-zinc-500 mt-1">
+                Set a warehouse address where brands will ship product samples for you to review. You must have a warehouse address to receive brand pitches.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {warehouseAddress ? (
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-emerald-300 font-semibold text-sm mb-1">Warehouse configured</p>
+                    <p className="text-zinc-300 text-sm">{warehouseAddress.fullName}</p>
+                    <p className="text-zinc-400 text-sm">{warehouseAddress.addressLine1}{warehouseAddress.addressLine2 ? `, ${warehouseAddress.addressLine2}` : ""}</p>
+                    <p className="text-zinc-400 text-sm">{warehouseAddress.city}, {warehouseAddress.state} – {warehouseAddress.postalCode}</p>
+                    <p className="text-zinc-400 text-sm">{warehouseAddress.country}</p>
+                    <p className="text-zinc-500 text-xs mt-1">Phone: {warehouseAddress.phoneNumber}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-start gap-3">
+                  <MapPin className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
+                  <p className="text-amber-300 text-sm">No warehouse address set. You cannot receive brand pitches until you configure one.</p>
+                </div>
+              )}
+
+              {addresses.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-zinc-400 text-sm">Select from your saved addresses</Label>
+                  {addresses.map((addr) => (
+                    <div key={addr.id} className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${addr.isWarehouse ? "border-emerald-500/40 bg-emerald-500/5" : "border-[#1a1a1a] bg-[#111111]"}`}>
+                      <div>
+                        <p className="text-white text-sm font-medium">{addr.fullName}</p>
+                        <p className="text-zinc-500 text-xs">{addr.addressLine1}, {addr.city}, {addr.state} {addr.postalCode}</p>
+                      </div>
+                      {addr.isWarehouse ? (
+                        <span className="text-xs text-emerald-400 font-semibold px-2 py-1 bg-emerald-500/10 rounded-full">Active</span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 text-xs h-7"
+                          disabled={warehouseLoading}
+                          onClick={() => handleSetWarehouse(addr.id)}
+                        >
+                          Use as Warehouse
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="pt-2 border-t border-[#1a1a1a]">
+                {!showNewAddressForm ? (
+                  <Button
+                    variant="outline"
+                    className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 text-sm"
+                    onClick={() => setShowNewAddressForm(true)}
+                  >
+                    <Plus className="w-4 h-4 mr-2" /> Add New Address
+                  </Button>
+                ) : (
+                  <div className="space-y-3">
+                    <Label className="text-zinc-400 text-sm">New Warehouse Address</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2">
+                        <Label className="text-xs text-zinc-500">Full Name *</Label>
+                        <Input value={newAddr.fullName} onChange={(e) => setNewAddr(p => ({ ...p, fullName: e.target.value }))} className="bg-[#111] border-[#1a1a1a] text-white mt-1" />
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs text-zinc-500">Phone *</Label>
+                        <Input value={newAddr.phoneNumber} onChange={(e) => setNewAddr(p => ({ ...p, phoneNumber: e.target.value }))} className="bg-[#111] border-[#1a1a1a] text-white mt-1" />
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs text-zinc-500">Address Line 1 *</Label>
+                        <Input value={newAddr.addressLine1} onChange={(e) => setNewAddr(p => ({ ...p, addressLine1: e.target.value }))} className="bg-[#111] border-[#1a1a1a] text-white mt-1" />
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs text-zinc-500">Address Line 2</Label>
+                        <Input value={newAddr.addressLine2} onChange={(e) => setNewAddr(p => ({ ...p, addressLine2: e.target.value }))} className="bg-[#111] border-[#1a1a1a] text-white mt-1" />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-zinc-500">City *</Label>
+                        <Input value={newAddr.city} onChange={(e) => setNewAddr(p => ({ ...p, city: e.target.value }))} className="bg-[#111] border-[#1a1a1a] text-white mt-1" />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-zinc-500">State *</Label>
+                        <Input value={newAddr.state} onChange={(e) => setNewAddr(p => ({ ...p, state: e.target.value }))} className="bg-[#111] border-[#1a1a1a] text-white mt-1" />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-zinc-500">Postal Code *</Label>
+                        <Input value={newAddr.postalCode} onChange={(e) => setNewAddr(p => ({ ...p, postalCode: e.target.value }))} className="bg-[#111] border-[#1a1a1a] text-white mt-1" />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-zinc-500">Country</Label>
+                        <Input value={newAddr.country} onChange={(e) => setNewAddr(p => ({ ...p, country: e.target.value }))} className="bg-[#111] border-[#1a1a1a] text-white mt-1" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        disabled={warehouseLoading}
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm"
+                        onClick={handleAddWarehouseAddress}
+                      >
+                        {warehouseLoading ? "Saving..." : "Save as Warehouse"}
+                      </Button>
+                      <Button variant="ghost" className="text-zinc-500" onClick={() => setShowNewAddressForm(false)}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* ================= GENERAL TAB ================= */}
         <TabsContent value="general" className="space-y-6 mt-6">

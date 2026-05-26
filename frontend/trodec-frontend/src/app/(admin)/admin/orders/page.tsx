@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { ShoppingBag, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { getAdminOrders, AdminOrderRow, PaginatedResult } from "@/services/admin.service";
+import { getAdminOrders, AdminOrderRow, PaginatedResult, adminUpdateOrderStatus } from "@/services/admin.service";
 
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-amber-500/10 text-amber-400",
@@ -104,9 +104,23 @@ export default function AdminOrdersPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full capitalize ${STATUS_STYLES[order.status] ?? "bg-zinc-500/10 text-zinc-400"}`}>
-                      {order.status}
-                    </span>
+                    <select
+                      value={order.status}
+                      onChange={async (e) => {
+                        try {
+                          await adminUpdateOrderStatus(order.id, e.target.value);
+                          toast.success(`Order updated to ${e.target.value}`);
+                          loadData();
+                        } catch {
+                          toast.error("Failed to update order status");
+                        }
+                      }}
+                      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full capitalize border-0 focus:outline-none cursor-pointer ${STATUS_STYLES[order.status] ?? "bg-zinc-500/10 text-zinc-400"}`}
+                    >
+                      {["pending","confirmed","processing","shipped","delivered","cancelled"].map(s => (
+                        <option key={s} value={s} className="bg-[#111] text-white capitalize">{s}</option>
+                      ))}
+                    </select>
                   </td>
                   <td className="px-4 py-3 text-right text-white font-medium">
                     ₹{order.total.toFixed(2)}

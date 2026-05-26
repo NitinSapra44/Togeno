@@ -4,6 +4,7 @@ import { ApiError } from "../utils";
 import { logger } from "../utils/logger";
 import { env } from "../config/env";
 import { orderService } from "./order.service";
+import { commissionService } from "./commission.service";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -62,14 +63,14 @@ function razorpayAuth(): string {
   return "Basic " + Buffer.from(`${key}:${secret}`).toString("base64");
 }
 
-async function razorpayPost<T>(path: string, body: Record<string, unknown>): Promise<T> {
+async function razorpayRequest<T>(path: string, method: "POST" | "GET", body?: Record<string, unknown>): Promise<T> {
   const res = await fetch(`${RAZORPAY_BASE}${path}`, {
-    method: "POST",
+    method,
     headers: {
       "Content-Type": "application/json",
       Authorization: razorpayAuth(),
     },
-    body: JSON.stringify(body),
+    body: body ? JSON.stringify(body) : undefined,
   });
 
   const json = (await res.json()) as T & { error?: { description?: string } };
@@ -79,6 +80,10 @@ async function razorpayPost<T>(path: string, body: Record<string, unknown>): Pro
     );
   }
   return json;
+}
+
+function razorpayPost<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  return razorpayRequest<T>(path, "POST", body);
 }
 
 // ---------------------------------------------------------------------------
@@ -299,8 +304,33 @@ class PaymentService {
         .eq("razorpay_order_id", razorpayOrderId);
 
       logger.info("Payment failed via webhook", { razorpayOrderId, eventId });
+    } else if (event === "payment.refunded") {
+      // A refund was issued (either via app cancellation flow or manually from Razorpay dashboard)
+      const { data: orderRow } = await supabaseAdmin
+        .from("orders")
+        .select("id")
+        .eq("razorpay_order_id", razorpayOrderId)
+        .maybeSingle();
+
+      if (orderRow) {
+        await supabaseAdmin
+          .from("payments")
+          .update({ status: "refunded", webhook_event_id: eventId, raw_payload: webhookPayload as Record<string, unknown> })
+          .eq("razorpay_order_id", razorpayOrderId);
+
+        await supabaseAdmin
+          .from("orders")
+          .update({ payment_status: "refunded" })
+          .eq("id", (orderRow as any).id);
+
+        // Reverse any commission so experts aren't paid for refunded orders
+        commissionService.reverse((orderRow as any).id).catch((err) =>
+          logger.error("Commission reversal failed on refund webhook", { orderId: (orderRow as any).id, err })
+        );
+
+        logger.info("Payment refunded via webhook", { razorpayOrderId, eventId, orderId: (orderRow as any).id });
+      }
     }
-    // Other events (e.g. refund) can be added here
   }
 
   /**
@@ -321,6 +351,48 @@ class PaymentService {
     }
 
     return data ? toPayment(data as PaymentRow) : null;
+  }
+
+  /**
+   * Issue a full Razorpay refund for a paid order.
+   * Safe to call on orders that were never paid (no-op).
+   * Called automatically when an order is cancelled.
+   */
+  async refundPayment(orderId: string): Promise<void> {
+    const payment = await this.getPaymentByOrderId(orderId);
+
+    // Nothing to refund if the order was never paid
+    if (!payment || payment.status !== "paid" || !payment.gatewayId) {
+      logger.info("No paid payment found — skipping refund", { orderId });
+      return;
+    }
+
+    const amountPaise = Math.round(payment.amount * 100);
+
+    // Issue full refund via Razorpay
+    const refund = await razorpayPost<{ id: string; amount: number; status: string }>(
+      `/payments/${payment.gatewayId}/refund`,
+      { amount: amountPaise, speed: "normal" }
+    );
+
+    logger.info("Razorpay refund initiated", {
+      orderId,
+      razorpayPaymentId: payment.gatewayId,
+      refundId: refund.id,
+      amount: payment.amount,
+    });
+
+    // Update payment record
+    await supabaseAdmin
+      .from("payments")
+      .update({ status: "refunded" })
+      .eq("id", payment.id);
+
+    // Update order payment_status
+    await supabaseAdmin
+      .from("orders")
+      .update({ payment_status: "refunded" })
+      .eq("id", orderId);
   }
 }
 

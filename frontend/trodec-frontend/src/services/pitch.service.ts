@@ -176,6 +176,19 @@ export async function respondToPitch(id: string, status: 'accepted' | 'declined'
 }
 
 /**
+ * Expert confirms product receipt — changes pitch status from "shipped" to "delivered"
+ * Required before the expert can publish a review post.
+ */
+export async function confirmPitchReceipt(id: string): Promise<Pitch> {
+  try {
+    const response = await api.post<ApiSuccessResponse<Pitch>>(`/pitches/${id}/confirm-receipt`);
+    return response.data.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
+}
+
+/**
  * Get all pitches (kept for backward compatibility - use getSentPitches or getReceivedPitches)
  */
 export async function getPitches(params?: {

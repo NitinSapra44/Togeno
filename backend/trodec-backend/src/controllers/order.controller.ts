@@ -170,6 +170,31 @@ class OrderController {
     }
   }
   /**
+   * GET /api/orders/expert
+   * Get orders attributed to the logged-in expert
+   */
+  async getExpertOrders(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const expertId = req.user!.id;
+      const { page, limit, status } = req.query;
+
+      const result = await orderService.getExpertOrders(expertId, {
+        page: page ? parseInt(page as string) : undefined,
+        limit: limit ? parseInt(limit as string) : undefined,
+        status: status as string,
+      });
+
+      sendSuccess(res, result, 200, "Expert orders fetched successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * POST /orders/validate-promo
    * Validate a promo code and return discount info.
    */

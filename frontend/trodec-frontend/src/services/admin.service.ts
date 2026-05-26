@@ -255,3 +255,61 @@ export async function adminDeleteProduct(productId: string): Promise<void> {
     throw new Error(getErrorMessage(error));
   }
 }
+
+export async function adminUpdateOrderStatus(orderId: string, status: string): Promise<void> {
+  try {
+    await api.patch(`/admin/orders/${orderId}/status`, { status });
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
+}
+
+export interface AdminPitchRow {
+  id: string;
+  status: string;
+  message: string | null;
+  offer_details: string | null;
+  sample_type: string;
+  created_at: string;
+  brand: { id: string; brand_name: string; logo_url: string | null } | null;
+  expert: { id: string; full_name: string; email: string } | null;
+  product: { id: string; name: string; slug: string } | null;
+  community: { id: string; name: string; slug: string } | null;
+}
+
+export interface AdminShipmentRow {
+  id: string;
+  status: string;
+  type: string;
+  awb_code: string | null;
+  tracking_url: string | null;
+  shiprocket_order_id: string | null;
+  shiprocket_shipment_id: string | null;
+  shipped_at: string | null;
+  delivered_at: string | null;
+  created_at: string;
+  order: { id: string; order_number: string; user_id: string } | null;
+  pitch: { id: string; status: string } | null;
+}
+
+export async function getAdminPitches(params?: {
+  page?: number; limit?: number; status?: string;
+}): Promise<PaginatedResult<AdminPitchRow>> {
+  try {
+    const res = await api.get<ApiSuccessResponse<PaginatedResult<AdminPitchRow>>>('/admin/pitches', { params });
+    return res.data.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
+}
+
+export async function getAdminShipments(params?: {
+  page?: number; limit?: number; status?: string;
+}): Promise<PaginatedResult<AdminShipmentRow>> {
+  try {
+    const res = await api.get<ApiSuccessResponse<PaginatedResult<AdminShipmentRow>>>('/admin/shipments', { params });
+    return res.data.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
+}
