@@ -74,7 +74,8 @@ export default function NewPostPage() {
 
         const productsFromPitches: PitchedProduct[] = [];
         pitchesResult.data.forEach((pitch) => {
-          if (pitch.status === "accepted" && pitch.product) {
+          // Only allow publishing reviews once the product has been delivered to the expert
+          if (pitch.status === "delivered" && pitch.product) {
             productsFromPitches.push({
               ...pitch.product,
               pitchId: pitch.id,

@@ -17,6 +17,15 @@ export const updateBrandSchema = z.object({
   description: z.string().max(2000, 'Description must be less than 2000 characters').optional().nullable(),
   logoUrl: z.string().url('Invalid logo URL').optional().nullable(),
   isVerified: z.boolean().optional(),
+  // GST / billing fields
+  gstNumber: z.string().max(20).optional().nullable(),
+  businessName: z.string().max(200).optional().nullable(),
+  registeredAddress: z.string().max(500).optional().nullable(),
+  billingState: z.string().max(100).optional().nullable(),
+  billingPincode: z.string().max(10).optional().nullable(),
+  billingEmail: z.string().email('Invalid billing email').optional().nullable(),
+  contactNumber: z.string().max(20).optional().nullable(),
+  panNumber: z.string().max(20).optional().nullable(),
 });
 
 // Query params for listing brands

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuthStore } from "@/stores/auth.store";
 import api from "@/services/api";
 import { createAddress, updateAddress, setDefaultShipping } from "@/services/address.service";
+import { updateBrandDetails } from "@/services/brand.service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,22 +16,32 @@ import { Switch } from "@/components/ui/switch";
 import {
   User,
   Shield,
-  Users,
   Camera,
   Mail,
   Building,
   Save,
-  Plus,
-  MoreHorizontal
+  Receipt,
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function BrandProfilePage() {
-  const { user, profile } = useAuthStore();
+  const { user, profile, brandDetails, fetchCurrentUser } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("general");
   const [warehouse, setWarehouse] = useState<any>(null);
+
+  const [gstForm, setGstForm] = useState({
+    gstNumber: "",
+    businessName: "",
+    registeredAddress: "",
+    billingState: "",
+    billingPincode: "",
+    billingEmail: "",
+    contactNumber: "",
+    panNumber: "",
+  });
+  const [isSavingGst, setIsSavingGst] = useState(false);
 
   const [warehouseForm, setWarehouseForm] = useState({
     fullName: "",
@@ -71,6 +82,21 @@ export default function BrandProfilePage() {
       }
     }
     fetchWarehouse();
+
+    // Pre-fill GST form from brandDetails
+    if (brandDetails) {
+      setGstForm({
+        gstNumber: brandDetails.gstNumber ?? "",
+        businessName: brandDetails.businessName ?? "",
+        registeredAddress: brandDetails.registeredAddress ?? "",
+        billingState: brandDetails.billingState ?? "",
+        billingPincode: brandDetails.billingPincode ?? "",
+        billingEmail: brandDetails.billingEmail ?? "",
+        contactNumber: brandDetails.contactNumber ?? "",
+        panNumber: brandDetails.panNumber ?? "",
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSave = () => {
@@ -149,6 +175,28 @@ export default function BrandProfilePage() {
     }
   };
 
+  const handleGstSave = async () => {
+    try {
+      setIsSavingGst(true);
+      await updateBrandDetails({
+        gstNumber: gstForm.gstNumber || null,
+        businessName: gstForm.businessName || null,
+        registeredAddress: gstForm.registeredAddress || null,
+        billingState: gstForm.billingState || null,
+        billingPincode: gstForm.billingPincode || null,
+        billingEmail: gstForm.billingEmail || null,
+        contactNumber: gstForm.contactNumber || null,
+        panNumber: gstForm.panNumber || null,
+      });
+      await fetchCurrentUser();
+      toast.success("Billing details saved");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save billing details");
+    } finally {
+      setIsSavingGst(false);
+    }
+  };
+
   const tabTriggerClass =
     "data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400 gap-2 px-4 py-2 rounded-md transition-all duration-200 hover:text-zinc-200 hover:bg-white/5";
 
@@ -173,8 +221,8 @@ export default function BrandProfilePage() {
             <TabsTrigger value="security" className={tabTriggerClass}>
               <Shield className="h-4 w-4" /> Security
             </TabsTrigger>
-            <TabsTrigger value="team" className={tabTriggerClass}>
-              <Users className="h-4 w-4" /> Team
+            <TabsTrigger value="billing" className={tabTriggerClass}>
+              <Receipt className="h-4 w-4" /> Billing / GST
             </TabsTrigger>
           </TabsList>
         </div>
@@ -479,37 +527,106 @@ export default function BrandProfilePage() {
               </Card>
             </TabsContent>
 
-            {/* ================= TEAM TAB ================= */}
-            <TabsContent value="team">
-              <Card className="bg-[#0b0b0b] border-[#1f1f1f] p-6 space-y-6">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-white font-semibold text-lg">
-                    Team Members
-                  </h2>
-                  <Button className="bg-emerald-600 hover:bg-emerald-500">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Invite Member
-                  </Button>
-                </div>
-
-                {[1, 2].map((i) => (
-                  <div
-                    key={i}
-                    className="flex justify-between items-center p-4 bg-[#111111] rounded-lg border border-white/5"
-                  >
-                    <div>
-                      <p className="text-white font-medium">
-                        {i === 1 ? "John Smith" : "Alice Lee"}
-                      </p>
-                      <p className="text-zinc-500 text-sm">
-                        example@email.com
-                      </p>
+            {/* ================= BILLING / GST TAB ================= */}
+            <TabsContent value="billing">
+              <Card className="bg-[#0b0b0b] border-[#1f1f1f]">
+                <CardHeader className="border-b border-white/5">
+                  <CardTitle className="text-white">Billing & GST Information</CardTitle>
+                  <CardDescription>
+                    Used on invoices generated from your orders. Required for GST-compliant billing.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6 pt-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-zinc-300">Business Name</Label>
+                      <Input
+                        value={gstForm.businessName}
+                        onChange={(e) => setGstForm({ ...gstForm, businessName: e.target.value })}
+                        placeholder="As per GST registration"
+                        className="bg-[#111111] border-[#1f1f1f] text-white"
+                      />
                     </div>
-                    <Badge variant="outline">Admin</Badge>
+                    <div className="space-y-2">
+                      <Label className="text-zinc-300">GST Number</Label>
+                      <Input
+                        value={gstForm.gstNumber}
+                        onChange={(e) => setGstForm({ ...gstForm, gstNumber: e.target.value.toUpperCase() })}
+                        placeholder="22AAAAA0000A1Z5"
+                        className="bg-[#111111] border-[#1f1f1f] text-white font-mono"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-zinc-300">PAN Number</Label>
+                      <Input
+                        value={gstForm.panNumber}
+                        onChange={(e) => setGstForm({ ...gstForm, panNumber: e.target.value.toUpperCase() })}
+                        placeholder="AAAAA0000A"
+                        className="bg-[#111111] border-[#1f1f1f] text-white font-mono"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-zinc-300">Contact Number</Label>
+                      <Input
+                        value={gstForm.contactNumber}
+                        onChange={(e) => setGstForm({ ...gstForm, contactNumber: e.target.value })}
+                        placeholder="+91 98765 43210"
+                        className="bg-[#111111] border-[#1f1f1f] text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-zinc-300">Billing Email</Label>
+                      <Input
+                        type="email"
+                        value={gstForm.billingEmail}
+                        onChange={(e) => setGstForm({ ...gstForm, billingEmail: e.target.value })}
+                        placeholder="billing@yourbrand.com"
+                        className="bg-[#111111] border-[#1f1f1f] text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-zinc-300">State</Label>
+                      <Input
+                        value={gstForm.billingState}
+                        onChange={(e) => setGstForm({ ...gstForm, billingState: e.target.value })}
+                        placeholder="Maharashtra"
+                        className="bg-[#111111] border-[#1f1f1f] text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-zinc-300">Pincode</Label>
+                      <Input
+                        value={gstForm.billingPincode}
+                        onChange={(e) => setGstForm({ ...gstForm, billingPincode: e.target.value })}
+                        placeholder="400001"
+                        className="bg-[#111111] border-[#1f1f1f] text-white"
+                      />
+                    </div>
                   </div>
-                ))}
+                  <div className="space-y-2">
+                    <Label className="text-zinc-300">Registered Address</Label>
+                    <Input
+                      value={gstForm.registeredAddress}
+                      onChange={(e) => setGstForm({ ...gstForm, registeredAddress: e.target.value })}
+                      placeholder="Full registered business address"
+                      className="bg-[#111111] border-[#1f1f1f] text-white"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleGstSave}
+                    disabled={isSavingGst}
+                    className="bg-emerald-600 hover:bg-emerald-500"
+                  >
+                    {isSavingGst ? (
+                      <><Save className="h-4 w-4 mr-2 animate-spin" /> Saving...</>
+                    ) : (
+                      <><Save className="h-4 w-4 mr-2" /> Save Billing Details</>
+                    )}
+                  </Button>
+                </CardContent>
               </Card>
             </TabsContent>
+
           </motion.div>
         </AnimatePresence>
       </Tabs>

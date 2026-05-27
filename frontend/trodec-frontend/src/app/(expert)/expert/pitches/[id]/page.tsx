@@ -20,6 +20,7 @@ import {
   Info,
   ChevronLeft,
   ChevronRight,
+  FileText,
 } from "lucide-react";
 import { ProductAttributesCard } from "@/components/product/ProductAttributesCard";
 import { toast } from "sonner";
@@ -430,6 +431,30 @@ export default function ExpertPitchDetailPage() {
                 >
                   {confirmingReceipt ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
                   Confirm Product Received
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ─── Publish Review (only if delivered) ─── */}
+      {pitch.status === "delivered" && (
+        <Card className="bg-[#0b0b0b] border border-emerald-500/20">
+          <CardContent className="pt-5">
+            <div className="flex items-start gap-3">
+              <FileText className="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <p className="text-white font-semibold text-sm mb-1">Product received — ready to publish</p>
+                <p className="text-zinc-400 text-xs mb-4">
+                  You've confirmed receipt of this product. Create your expert review post and share it with your community.
+                </p>
+                <Button
+                  onClick={() => router.push(`/expert/posts/new?pitchId=${pitch.id}&productId=${product?.id ?? ""}`)}
+                  className="bg-emerald-600 hover:bg-emerald-500 font-semibold"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Write Review Post
                 </Button>
               </div>
             </div>

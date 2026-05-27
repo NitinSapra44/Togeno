@@ -31,8 +31,6 @@ export default function NewCommunityPage() {
     slug: "",
     description: "",
     categoryId: "",
-    imageUrl: "",
-    coverImageUrl: "",
   });
 
   useEffect(() => {
@@ -86,17 +84,17 @@ export default function NewCommunityPage() {
 
     try {
       setIsSubmitting(true);
-      await createCommunity({
+      const community = await createCommunity({
         name: formData.name.trim(),
         slug: formData.slug || generateSlug(formData.name),
         description: formData.description.trim() || null,
         categoryId: formData.categoryId,
-        imageUrl: formData.imageUrl.trim() || null,
-        coverImageUrl: formData.coverImageUrl.trim() || null,
+        imageUrl: null,
+        coverImageUrl: null,
       });
 
-      toast.success("Community created successfully");
-      router.push("/expert/communities");
+      toast.success("Community created! Add your images now.");
+      router.push(`/expert/communities/${community.id}/edit`);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to create community"
@@ -240,40 +238,6 @@ export default function NewCommunityPage() {
                 }
                 placeholder="Describe what your community is about..."
                 className="bg-[#111111] border-[#1a1a1a] text-white min-h-[120px] focus-visible:ring-emerald-500/50"
-              />
-            </div>
-
-            {/* Image URL */}
-            <div className="space-y-2">
-              <Label className="text-zinc-300">
-                Community Image URL
-              </Label>
-              <Input
-                value={formData.imageUrl}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    imageUrl: e.target.value,
-                  })
-                }
-                className="bg-[#111111] border-[#1a1a1a] text-white"
-              />
-            </div>
-
-            {/* Cover Image */}
-            <div className="space-y-2">
-              <Label className="text-zinc-300">
-                Cover Image URL
-              </Label>
-              <Input
-                value={formData.coverImageUrl}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    coverImageUrl: e.target.value,
-                  })
-                }
-                className="bg-[#111111] border-[#1a1a1a] text-white"
               />
             </div>
 

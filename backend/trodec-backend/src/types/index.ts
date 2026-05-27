@@ -45,6 +45,15 @@ export interface BrandDetails {
   logoUrl: string | null;
   isVerified: boolean;
   verificationDate: string | null;
+  // GST / billing fields
+  gstNumber: string | null;
+  businessName: string | null;
+  registeredAddress: string | null;
+  billingState: string | null;
+  billingPincode: string | null;
+  billingEmail: string | null;
+  contactNumber: string | null;
+  panNumber: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -114,6 +123,14 @@ export interface BrandDetailsRow {
   logo_url: string | null;
   is_verified: boolean;
   verification_date: string | null;
+  gst_number: string | null;
+  business_name: string | null;
+  registered_address: string | null;
+  billing_state: string | null;
+  billing_pincode: string | null;
+  billing_email: string | null;
+  contact_number: string | null;
+  pan_number: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -158,6 +175,14 @@ export function toBrandDetails(row: BrandDetailsRow): BrandDetails {
     logoUrl: row.logo_url,
     isVerified: row.is_verified,
     verificationDate: row.verification_date,
+    gstNumber: row.gst_number ?? null,
+    businessName: row.business_name ?? null,
+    registeredAddress: row.registered_address ?? null,
+    billingState: row.billing_state ?? null,
+    billingPincode: row.billing_pincode ?? null,
+    billingEmail: row.billing_email ?? null,
+    contactNumber: row.contact_number ?? null,
+    panNumber: row.pan_number ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

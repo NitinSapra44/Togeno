@@ -100,6 +100,9 @@ export default function ProductsPage() {
   }, [isAuthenticated, hasFetched, fetchJoinedCommunities]);
 
   let filteredProducts = products.filter((p) => {
+    // Only surface products that have at least one expert-published post
+    if (!postsMap[p.id]) return false;
+
     const matchesSearch =
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (p.description?.toLowerCase() || "").includes(searchQuery.toLowerCase());

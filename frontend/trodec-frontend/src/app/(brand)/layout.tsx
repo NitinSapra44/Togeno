@@ -17,6 +17,7 @@ import {
   Menu,
   X,
   Users,
+  Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LogoutConfirmModal } from "@/components/ui/logout-confirm-modal";
@@ -28,6 +29,7 @@ const sidebarItems = [
   { href: "/brand/products", label: "Products", icon: Package },
   { href: "/brand/pitches", label: "Pitches", icon: Megaphone },
   { href: "/brand/orders", label: "Orders", icon: ShoppingBag },
+  { href: "/brand/invoices", label: "Invoices", icon: Receipt },
   { href: "/brand/profile", label: "Profile", icon: User },
 ];
 

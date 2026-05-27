@@ -15,6 +15,7 @@ import webhookRouter from "./webhook.routes";
 import commissionRouter from "./commission.routes";
 import shipmentRouter from "./shipment.routes";
 import notificationRouter from "./notification.routes";
+import invoiceRouter from "./invoice.routes";
 
 const router = Router();
 
@@ -36,6 +37,7 @@ router.use("/webhook", webhookRouter);
 router.use("/commissions", commissionRouter);
 router.use("/shipments", shipmentRouter);
 router.use("/notifications", notificationRouter);
+router.use("/invoices", invoiceRouter);
 
 // Export aggregated router as default
 export default router;

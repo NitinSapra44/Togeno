@@ -185,6 +185,14 @@ class BrandService {
     if (data.isVerified !== undefined) {
       updateData.is_verified = data.isVerified;
     }
+    if (data.gstNumber !== undefined) updateData.gst_number = data.gstNumber;
+    if (data.businessName !== undefined) updateData.business_name = data.businessName;
+    if (data.registeredAddress !== undefined) updateData.registered_address = data.registeredAddress;
+    if (data.billingState !== undefined) updateData.billing_state = data.billingState;
+    if (data.billingPincode !== undefined) updateData.billing_pincode = data.billingPincode;
+    if (data.billingEmail !== undefined) updateData.billing_email = data.billingEmail;
+    if (data.contactNumber !== undefined) updateData.contact_number = data.contactNumber;
+    if (data.panNumber !== undefined) updateData.pan_number = data.panNumber;
 
     if (Object.keys(updateData).length === 0) {
       throw ApiError.badRequest("No fields to update");
