@@ -324,8 +324,12 @@ class ShiprocketClient {
       return location;
     }
 
-    logger.warn("Brand has no Shiprocket pickup location set, falling back to Primary", { brandId });
-    return "Primary";
+    // Derive the deterministic name that syncPickupLocation would have registered.
+    // This handles the race where syncPickupLocation succeeded in Shiprocket but
+    // the DB update failed, or where the column was never written.
+    const derivedName = `trodec-brand-${brandId.replace(/-/g, "").slice(0, 12)}`;
+    logger.warn("Brand has no Shiprocket pickup location in DB, using derived name", { brandId, derivedName });
+    return derivedName;
   }
 
   /**

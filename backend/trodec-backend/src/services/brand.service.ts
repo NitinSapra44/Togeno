@@ -409,7 +409,13 @@ class BrandService {
         country: (addrRow as any).country || "India",
         pinCode: (addrRow as any).postal_code,
       });
+    } catch (err) {
+      // "already exists" from Shiprocket is acceptable — still write the name to DB
+      logger.warn("Shiprocket addPickupLocation error (may already exist, continuing)", { brandId, err });
+    }
 
+    try {
+      // Always persist the location name so getBrandPickupLocation can find it
       await supabaseAdmin
         .from("brand_details")
         .update({ shiprocket_pickup_location: locationName })
