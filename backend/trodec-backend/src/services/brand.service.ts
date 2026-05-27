@@ -396,34 +396,53 @@ class BrandService {
 
     const brandEmail = (profileRow as any)?.email ?? "";
 
+    // Shiprocket requires address_line1 to be ≥ 10 characters.
+    // If the saved line1 is short, combine it with line2 to satisfy the constraint.
+    const rawLine1 = (addrRow as any).address_line1 as string;
+    const rawLine2 = ((addrRow as any).address_line2 ?? "") as string;
+    const shiprocketAddress = rawLine1.length >= 10
+      ? rawLine1
+      : [rawLine1, rawLine2].filter(Boolean).join(", ").padEnd(10, " ").trim();
+    const shiprocketAddress2 = rawLine1.length >= 10 ? rawLine2 : "";
+
+    let registeredOk = false;
     try {
       await shiprocketClient.addPickupLocation({
         locationName,
         name: (addrRow as any).full_name,
         email: brandEmail,
         phone: (addrRow as any).phone_number,
-        address: (addrRow as any).address_line1,
-        address2: (addrRow as any).address_line2 ?? "",
+        address: shiprocketAddress,
+        address2: shiprocketAddress2,
         city: (addrRow as any).city,
         state: (addrRow as any).state,
         country: (addrRow as any).country || "India",
         pinCode: (addrRow as any).postal_code,
       });
-    } catch (err) {
-      // "already exists" from Shiprocket is acceptable — still write the name to DB
-      logger.warn("Shiprocket addPickupLocation error (may already exist, continuing)", { brandId, err });
+      registeredOk = true;
+    } catch (err: any) {
+      const msg = String(err?.message ?? err);
+      // Shiprocket 422 "already exists" — location is already registered, that's fine
+      if (msg.includes("already") || msg.includes("422") || msg.includes("exist")) {
+        registeredOk = true;
+        logger.info("Shiprocket pickup location already exists, marking as registered", { brandId });
+      } else {
+        logger.error("Shiprocket addPickupLocation failed — pickup may not work", { brandId, err: msg });
+      }
     }
 
-    try {
-      // Always persist the location name so getBrandPickupLocation can find it
-      await supabaseAdmin
-        .from("brand_details")
-        .update({ shiprocket_pickup_location: locationName })
-        .eq("id", brandId);
-
-      logger.info("Brand Shiprocket pickup location synced", { brandId, locationName });
-    } catch (err) {
-      logger.error("Failed to sync Shiprocket pickup location for brand", { brandId, err });
+    if (registeredOk) {
+      try {
+        await supabaseAdmin
+          .from("brand_details")
+          .update({ shiprocket_pickup_location: locationName })
+          .eq("id", brandId);
+        logger.info("Brand Shiprocket pickup location synced", { brandId, locationName });
+      } catch (err) {
+        logger.error("Failed to save shiprocket_pickup_location to DB", { brandId, err });
+      }
+    } else {
+      logger.warn("Skipping DB save — pickup location was not successfully registered in Shiprocket", { brandId });
     }
   }
 

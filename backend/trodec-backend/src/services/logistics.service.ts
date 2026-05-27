@@ -224,6 +224,11 @@ class ShiprocketClient {
       status: string;
     }>("/orders/create/adhoc", body);
 
+    // Shiprocket returns no order_id when the pickup location is unregistered or invalid
+    if (!resp.order_id) {
+      throw new Error(`Shiprocket order creation returned no order_id — pickup location may be unregistered. Response: ${JSON.stringify(resp)}`);
+    }
+
     // Auto-assign courier — wallet may be empty; don't throw if it fails
     let awb = resp.awb_code ?? "";
     let courier = resp.courier_name ?? "Shiprocket";
