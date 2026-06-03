@@ -494,7 +494,13 @@ export default function BrandPitchDetailPage() {
                             setShipment((prev) => prev ? { ...prev, labelUrl: url } : prev);
                             toast.success("Label generated successfully");
                           } catch (err: any) {
-                            toast.error(err.message ?? "Label not ready yet — try again shortly");
+                            const msg: string = err?.message ?? "";
+                            if (msg.startsWith("LABEL_NOT_AVAILABLE:")) {
+                              const dashboardUrl = msg.replace("LABEL_NOT_AVAILABLE:", "");
+                              window.open(dashboardUrl, "_blank");
+                            } else {
+                              toast.error(msg || "Label not ready — try again shortly");
+                            }
                           } finally {
                             setGeneratingLabel(false);
                           }
@@ -505,7 +511,7 @@ export default function BrandPitchDetailPage() {
                         ) : (
                           <Download className="h-3.5 w-3.5 mr-1" />
                         )}
-                        {generatingLabel ? "Generating..." : "Generate Label"}
+                        {generatingLabel ? "Fetching..." : "Get Label"}
                       </Button>
                     </div>
                   )}

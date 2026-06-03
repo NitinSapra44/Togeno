@@ -837,7 +837,11 @@ class LogisticsService {
     }
 
     if (!labelUrl) {
-      throw ApiError.internal("Shiprocket label not available. The shipment may still be processing. Please check your Shiprocket dashboard directly.");
+      const dashboardUrl = row.shiprocket_order_id
+        ? `https://app.shiprocket.in/orders/show/${row.shiprocket_order_id}`
+        : "https://app.shiprocket.in";
+      const err = ApiError.internal(`LABEL_NOT_AVAILABLE:${dashboardUrl}`);
+      throw err;
     }
 
     await supabaseAdmin
