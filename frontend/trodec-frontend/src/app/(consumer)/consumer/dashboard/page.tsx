@@ -460,6 +460,14 @@ export default function DashboardPage() {
     [posts, joinedCommunityIds]
   );
 
+  const postsMap = useMemo(() => {
+    const map: Record<string, typeof posts[0]> = {};
+    posts.forEach((post) => {
+      if (!map[post.productId]) map[post.productId] = post;
+    });
+    return map;
+  }, [posts]);
+
   const trendingProducts = useMemo(
     () =>
       [...products]
@@ -471,14 +479,6 @@ export default function DashboardPage() {
         .slice(0, 8),
     [products, joinedCommunityIds, postsMap]
   );
-
-  const postsMap = useMemo(() => {
-    const map: Record<string, typeof posts[0]> = {};
-    posts.forEach((post) => {
-      if (!map[post.productId]) map[post.productId] = post;
-    });
-    return map;
-  }, [posts]);
 
   const firstName = profile?.fullName?.split(" ")[0] || "there";
   const reviewWord = communityFeedPosts.length === 1 ? "review" : "reviews";
