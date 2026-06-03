@@ -33,6 +33,20 @@ class LogisticsController {
     }
   }
 
+  /**
+   * POST /api/shipments/:id/refresh-label
+   * Regenerate and save a shipping label from Shiprocket.
+   */
+  async refreshLabel(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const shipmentId = req.params["id"] as string;
+      const labelUrl = await logisticsService.refreshLabel(shipmentId);
+      sendSuccess(res, { labelUrl }, 200, "Label generated successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async shiprocketWebhook(req: Request, res: Response) {
     try {
       const payload = req.body as Record<string, unknown>;

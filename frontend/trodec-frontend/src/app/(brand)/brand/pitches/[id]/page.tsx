@@ -34,6 +34,7 @@ import {
 } from "@/services";
 import {
   getPitchShipment,
+  refreshShipmentLabel,
   getShipmentStatusColor,
   getShipmentStatusLabel,
   PitchShipment,
@@ -51,6 +52,7 @@ export default function BrandPitchDetailPage() {
   const [shipmentError, setShipmentError] = useState<string | null>(null);
   const [selectedImageIdx, setSelectedImageIdx] = useState(0);
   const [markingShipped, setMarkingShipped] = useState(false);
+  const [generatingLabel, setGeneratingLabel] = useState(false);
 
   useEffect(() => {
     loadPitch();
@@ -480,7 +482,31 @@ export default function BrandPitchDetailPage() {
                   {!shipment.labelUrl && shipment.awbCode && (
                     <div className="flex justify-between items-center">
                       <span className="text-zinc-500">Shipping Label</span>
-                      <span className="text-zinc-600 text-xs">Generating...</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={generatingLabel}
+                        className="h-7 px-2 border-amber-500/30 text-amber-400 hover:bg-amber-500/10 text-xs"
+                        onClick={async () => {
+                          setGeneratingLabel(true);
+                          try {
+                            const url = await refreshShipmentLabel(shipment.id);
+                            setShipment((prev) => prev ? { ...prev, labelUrl: url } : prev);
+                            toast.success("Label generated successfully");
+                          } catch (err: any) {
+                            toast.error(err.message ?? "Label not ready yet — try again shortly");
+                          } finally {
+                            setGeneratingLabel(false);
+                          }
+                        }}
+                      >
+                        {generatingLabel ? (
+                          <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                        ) : (
+                          <Download className="h-3.5 w-3.5 mr-1" />
+                        )}
+                        {generatingLabel ? "Generating..." : "Generate Label"}
+                      </Button>
                     </div>
                   )}
                   {shipment.shippedAt && (

@@ -23,6 +23,15 @@ export interface PitchShipment {
   } | null;
 }
 
+export async function refreshShipmentLabel(shipmentId: string): Promise<string> {
+  try {
+    const response = await api.post<ApiSuccessResponse<{ labelUrl: string }>>(`/shipments/${shipmentId}/refresh-label`);
+    return response.data.data.labelUrl;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
+}
+
 export async function getPitchShipment(pitchId: string): Promise<PitchShipment> {
   try {
     const response = await api.get<ApiSuccessResponse<PitchShipment>>(`/pitches/${pitchId}/shipment`);

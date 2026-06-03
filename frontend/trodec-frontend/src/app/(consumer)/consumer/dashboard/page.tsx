@@ -11,14 +11,13 @@ import {
   ThumbsUp,
   MessageSquare,
   Send,
-  Flame,
   CheckCircle2,
   MessagesSquare,
   Compass,
 } from "lucide-react";
-import { PremiumProductCard, PremiumProductCardSkeleton } from "@/components/product/PremiumProductCard";
+import { PremiumProductCard } from "@/components/product/PremiumProductCard";
 import { useRouter } from "next/navigation";
-import { getCommunities, getProducts, Community, Product } from "@/services";
+import { getCommunities, Community } from "@/services";
 import { useAuthStore } from "@/stores/auth.store";
 import { useCommunityStore } from "@/stores";
 import { PostService, PostWithDetails } from "@/services/post.service";
@@ -393,7 +392,6 @@ export default function DashboardPage() {
 
   const [communities, setCommunities] = useState<Community[]>([]);
   const [posts, setPosts] = useState<PostWithDetails[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -402,14 +400,12 @@ export default function DashboardPage() {
         // Fetch joined communities first so the store is populated before products are set
         if (isAuthenticated) await fetchJoinedCommunities();
 
-        const [commResult, postsResult, productsResult] = await Promise.all([
+        const [commResult, postsResult] = await Promise.all([
           getCommunities({ limit: 100 }),
           PostService.getPosts({ isPublished: "true", limit: 30, sortBy: "created_at", sortOrder: "desc" }),
-          getProducts({ limit: 100 }),
         ]);
         setCommunities(uniqueById(commResult.data));
         setPosts(uniqueById(postsResult.data));
-        setProducts(uniqueById(productsResult.data));
       } catch (error) {
         console.error(error);
       } finally {
@@ -460,26 +456,6 @@ export default function DashboardPage() {
     [posts, joinedCommunityIds]
   );
 
-  const postsMap = useMemo(() => {
-    const map: Record<string, typeof posts[0]> = {};
-    posts.forEach((post) => {
-      if (!map[post.productId]) map[post.productId] = post;
-    });
-    return map;
-  }, [posts]);
-
-  const trendingProducts = useMemo(
-    () =>
-      [...products]
-        .filter((p) =>
-          postsMap[p.id] && // only show products with a published review
-          (!p.communityId || !joinedCommunityIds.includes(p.communityId))
-        )
-        .sort((a, b) => (b.averageRating ?? 0) - (a.averageRating ?? 0))
-        .slice(0, 8),
-    [products, joinedCommunityIds, postsMap]
-  );
-
   const firstName = profile?.fullName?.split(" ")[0] || "there";
   const reviewWord = communityFeedPosts.length === 1 ? "review" : "reviews";
   const communityWord = joinedCommunityIds.length === 1 ? "community" : "communities";
@@ -490,50 +466,6 @@ export default function DashboardPage() {
   const heroSubtext = hasJoinedCommunities
     ? `${communityFeedPosts.length} expert ${reviewWord} across your ${joinedCommunityIds.length} ${communityWord}.`
     : "Join communities to get expert-curated product picks right in your feed.";
-  let discoverContent: React.ReactNode;
-  if (isLoading) {
-    discoverContent = (
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 auto-rows-fr">
-        {["p0", "p1", "p2", "p3"].map((k) => (
-          <PremiumProductCardSkeleton key={k} />
-        ))}
-      </div>
-    );
-  } else if (trendingProducts.length === 0) {
-    discoverContent = (
-      <div className="rounded-xl border border-white/10 bg-[#0a0a0c] p-8 text-center space-y-3">
-        <Compass className="w-6 h-6 text-zinc-600 mx-auto" />
-        <p className="text-zinc-500 text-xs">
-          You&apos;ve joined all active communities — you&apos;re all caught up!
-        </p>
-        <button
-          onClick={() => router.push("/consumer/products")}
-          className="inline-flex items-center gap-1.5 text-[12px] font-bold text-purple-400 hover:text-purple-300 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 px-4 py-2 rounded-lg transition-all"
-        >
-          Browse All Products <ArrowRight className="w-3.5 h-3.5" />
-        </button>
-      </div>
-    );
-  } else {
-    discoverContent = (
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 auto-rows-fr">
-        {trendingProducts.map((product) => {
-          const productCommunity = product.communityId
-            ? communities.find((c) => c.id === product.communityId)
-            : null;
-          return (
-            <PremiumProductCard
-              key={product.id}
-              product={product}
-              expertPost={postsMap[product.id]}
-              communityData={productCommunity ? { id: productCommunity.id, name: productCommunity.name } : undefined}
-              onCommunityClick={(communityId) => router.push(`/consumer/communities/${communityId}`)}
-            />
-          );
-        })}
-      </div>
-    );
-  }
 
   const heroCta = hasJoinedCommunities ? (
     <button
@@ -621,29 +553,6 @@ export default function DashboardPage() {
                 onLike={handleLikePost}
                 onNavigate={(path) => router.push(path)}
               />
-            </div>
-
-            {/* DISCOVER PRODUCTS */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Flame className="w-4 h-4 text-orange-400" />
-                    <h2 className="text-[15px] font-bold text-white tracking-tight">Discover Products</h2>
-                  </div>
-                  <p className="text-[11px] text-zinc-500 mt-0.5 ml-6">
-                    From communities you haven&apos;t joined yet — don&apos;t miss out!
-                  </p>
-                </div>
-                <button
-                  onClick={() => router.push("/consumer/products")}
-                  className="text-[11px] font-bold text-purple-400 hover:text-purple-300 flex items-center gap-1 transition-colors uppercase tracking-wider shrink-0"
-                >
-                  View All
-                </button>
-              </div>
-
-              {discoverContent}
             </div>
 
             {/* DISCOVER COMMUNITIES — appears below the personalised feed */}

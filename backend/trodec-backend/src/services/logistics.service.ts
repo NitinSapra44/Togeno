@@ -761,6 +761,40 @@ class LogisticsService {
   }
 
   /**
+   * Regenerate and save the shipping label for a shipment.
+   * Used as a fallback when label generation failed at creation time.
+   */
+  async refreshLabel(shipmentId: string): Promise<string | null> {
+    const { data, error } = await supabaseAdmin
+      .from("shipments")
+      .select("shiprocket_shipment_id, awb_code, label_url")
+      .eq("id", shipmentId)
+      .single();
+
+    if (error || !data) throw ApiError.notFound("Shipment not found");
+
+    const row = data as { shiprocket_shipment_id: string | null; awb_code: string | null; label_url: string | null };
+
+    if (!row.shiprocket_shipment_id) {
+      throw ApiError.badRequest("No Shiprocket shipment ID — label cannot be generated");
+    }
+
+    const labelUrl = await shiprocketClient.generateLabel(row.shiprocket_shipment_id);
+
+    if (!labelUrl) {
+      throw ApiError.internal("Shiprocket did not return a label URL — AWB may not be fully assigned yet");
+    }
+
+    await supabaseAdmin
+      .from("shipments")
+      .update({ label_url: labelUrl })
+      .eq("id", shipmentId);
+
+    logger.info("Label refreshed", { shipmentId, labelUrl });
+    return labelUrl;
+  }
+
+  /**
    * Update AWB code for a shipment after courier assignment (post-KYC).
    */
   async updateAwbCode(shipmentId: string, awbCode: string): Promise<Shipment> {
