@@ -346,12 +346,20 @@ class ShiprocketClient {
    */
   async generateLabel(shiprocketShipmentId: string): Promise<string | null> {
     try {
-      const resp = await this.post<{ label_url?: string; label_created?: number; not_created?: unknown[] }>(
+      const resp = await this.post<Record<string, unknown>>(
         "/orders/print/label",
-        { shipment_id: [Number(shiprocketShipmentId)] }, // Shiprocket requires numeric IDs
+        { shipment_id: [Number(shiprocketShipmentId)] },
       );
-      logger.info("Shiprocket label response", { shiprocketShipmentId, labelUrl: resp.label_url, labelCreated: resp.label_created, notCreated: resp.not_created });
-      return resp.label_url ?? null;
+      // Log full response so we can see exactly what Shiprocket returns
+      logger.info("Shiprocket label full response", { shiprocketShipmentId, resp: JSON.stringify(resp) });
+
+      // Handle both top-level and nested label_url
+      const labelUrl =
+        (resp.label_url as string | undefined) ||
+        ((resp as any)?.response?.label_url as string | undefined) ||
+        null;
+
+      return labelUrl && labelUrl.length > 0 ? labelUrl : null;
     } catch (err) {
       logger.warn("Shiprocket label generation failed", { shiprocketShipmentId, err });
       return null;
@@ -784,7 +792,7 @@ class LogisticsService {
     const labelUrl = await shiprocketClient.generateLabel(row.shiprocket_shipment_id);
 
     if (!labelUrl) {
-      throw ApiError.internal("Shiprocket did not return a label URL — AWB may not be fully assigned yet");
+      throw ApiError.internal("Label not available yet. Check server logs for Shiprocket response details. Try again in a few minutes.");
     }
 
     await supabaseAdmin
