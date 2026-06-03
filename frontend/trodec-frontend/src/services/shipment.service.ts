@@ -7,6 +7,7 @@ export interface PitchShipment {
   pitchId: string | null;
   trackingId: string;
   awbCode: string | null;
+  labelUrl: string | null;
   carrier: string;
   type: string;
   status: ShipmentStatus;

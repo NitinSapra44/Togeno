@@ -22,6 +22,7 @@ import {
   ChevronRight,
   User,
   Check,
+  Download,
 } from "lucide-react";
 import { ProductAttributesCard } from "@/components/product/ProductAttributesCard";
 import { toast } from "sonner";
@@ -462,6 +463,26 @@ export default function BrandPitchDetailPage() {
                       {shipment.awbCode ?? shipment.trackingId}
                     </span>
                   </div>
+                  {shipment.labelUrl && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-zinc-500">Shipping Label</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-xs"
+                        onClick={() => window.open(shipment.labelUrl!, "_blank")}
+                      >
+                        <Download className="h-3.5 w-3.5 mr-1" />
+                        Download Label
+                      </Button>
+                    </div>
+                  )}
+                  {!shipment.labelUrl && shipment.awbCode && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-zinc-500">Shipping Label</span>
+                      <span className="text-zinc-600 text-xs">Generating...</span>
+                    </div>
+                  )}
                   {shipment.shippedAt && (
                     <div className="flex justify-between">
                       <span className="text-zinc-500">Shipped</span>
