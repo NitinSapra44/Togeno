@@ -396,7 +396,7 @@ export default function ExpertCommunityDetailPage({
             id: p.product!.id,
             pitchId: p.id,
             name: p.product!.name,
-            imageUrl: p.product!.imageUrl,
+            imageUrl: p.product!.images?.[0]?.imageUrl,
             price: p.product!.price,
           }));
         setProductOptions(delivered);
