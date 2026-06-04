@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { Loader2, Truck, ExternalLink } from "lucide-react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { Loader2, Truck, ExternalLink, Upload, Download } from "lucide-react";
 import { toast } from "sonner";
-import { getAdminShipments, AdminShipmentRow, PaginatedResult } from "@/services/admin.service";
+import { getAdminShipments, uploadShipmentLabel, AdminShipmentRow, PaginatedResult } from "@/services/admin.service";
 
 const STATUS_STYLES: Record<string, string> = {
   PENDING:          "bg-amber-500/10 text-amber-400",
@@ -19,6 +19,9 @@ export default function AdminShipmentsPage() {
   const [data, setData] = useState<PaginatedResult<AdminShipmentRow> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingShipmentId = useRef<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -34,12 +37,47 @@ export default function AdminShipmentsPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  function handleUploadClick(shipmentId: string) {
+    pendingShipmentId.current = shipmentId;
+    fileInputRef.current?.click();
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    const shipmentId = pendingShipmentId.current;
+    if (!file || !shipmentId) return;
+    e.target.value = "";
+    try {
+      setUploadingId(shipmentId);
+      const { labelUrl } = await uploadShipmentLabel(shipmentId, file);
+      setData((prev) => prev ? {
+        ...prev,
+        data: prev.data.map((s) => s.id === shipmentId ? { ...s, label_url: labelUrl } : s),
+      } : prev);
+      toast.success("Label uploaded successfully");
+    } catch {
+      toast.error("Failed to upload label");
+    } finally {
+      setUploadingId(null);
+      pendingShipmentId.current = null;
+    }
+  }
+
   return (
     <div className="w-full space-y-8 text-white">
       <div className="pb-6 border-b border-[#1f1f1f]">
         <h1 className="text-2xl font-semibold tracking-tight">Shipments</h1>
         <p className="text-sm text-zinc-400 mt-1">Track all consumer orders and sample shipments</p>
       </div>
+
+      {/* Hidden file input for label uploads */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.jpg,.jpeg,.png"
+        className="hidden"
+        onChange={handleFileChange}
+      />
 
       <div className="flex items-center gap-3">
         <select
@@ -80,6 +118,7 @@ export default function AdminShipmentsPage() {
                 <th className="text-left px-4 py-3 text-xs font-medium text-zinc-400">Status</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-zinc-400">Shipped</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-zinc-400">Delivered</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-400">Label</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-zinc-400">Track</th>
               </tr>
             </thead>
@@ -114,6 +153,30 @@ export default function AdminShipmentsPage() {
                   </td>
                   <td className="px-4 py-3 text-zinc-500 text-xs">
                     {shipment.delivered_at ? new Date(shipment.delivered_at).toLocaleDateString() : "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    {shipment.label_url ? (
+                      <a
+                        href={shipment.label_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        View
+                      </a>
+                    ) : (
+                      <button
+                        onClick={() => handleUploadClick(shipment.id)}
+                        disabled={uploadingId === shipment.id}
+                        className="flex items-center gap-1 text-xs text-zinc-400 hover:text-white transition-colors disabled:opacity-50"
+                      >
+                        {uploadingId === shipment.id
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          : <Upload className="w-3.5 h-3.5" />}
+                        Upload
+                      </button>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     {shipment.tracking_url ? (

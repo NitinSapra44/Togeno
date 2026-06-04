@@ -283,6 +283,7 @@ export interface AdminShipmentRow {
   type: string;
   awb_code: string | null;
   tracking_url: string | null;
+  label_url: string | null;
   shiprocket_order_id: string | null;
   shiprocket_shipment_id: string | null;
   shipped_at: string | null;
@@ -308,6 +309,21 @@ export async function getAdminShipments(params?: {
 }): Promise<PaginatedResult<AdminShipmentRow>> {
   try {
     const res = await api.get<ApiSuccessResponse<PaginatedResult<AdminShipmentRow>>>('/admin/shipments', { params });
+    return res.data.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
+}
+
+export async function uploadShipmentLabel(shipmentId: string, file: File): Promise<{ labelUrl: string }> {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await api.post<ApiSuccessResponse<{ labelUrl: string }>>(
+      `/admin/shipments/${shipmentId}/upload-label`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
     return res.data.data;
   } catch (error) {
     throw new Error(getErrorMessage(error));
