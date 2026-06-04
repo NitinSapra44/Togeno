@@ -133,6 +133,15 @@ export const OrderService = {
     }
   },
 
+  async brandCancelOrder(id: string): Promise<Order> {
+    try {
+      const response = await api.post<ApiSuccessResponse<Order>>(`/orders/${id}/brand-cancel`);
+      return response.data.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error));
+    }
+  },
+
   async validatePromo(code: string): Promise<{ code: string; discountPct: number; label: string }> {
     try {
       const response = await api.post<ApiSuccessResponse<{ code: string; discountPct: number; label: string }>>('/orders/validate-promo', { code });

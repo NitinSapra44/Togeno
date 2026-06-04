@@ -125,7 +125,7 @@ class OrderController {
 
   /**
    * POST /api/orders/:id/cancel
-   * Cancel order
+   * Cancel order (consumer — must own the order)
    */
   async cancelOrder(
     req: AuthenticatedRequest,
@@ -135,9 +135,25 @@ class OrderController {
     try {
       const userId = req.user!.id;
       const id = req.params.id as string;
-
       const order = await orderService.cancelOrder(id, userId);
+      sendSuccess(res, order, 200, "Order cancelled successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
 
+  /**
+   * POST /api/orders/:id/brand-cancel
+   * Cancel order (brand admin — no user_id ownership filter)
+   */
+  async brandCancelOrder(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const id = req.params.id as string;
+      const order = await orderService.cancelOrder(id);
       sendSuccess(res, order, 200, "Order cancelled successfully");
     } catch (error) {
       next(error);

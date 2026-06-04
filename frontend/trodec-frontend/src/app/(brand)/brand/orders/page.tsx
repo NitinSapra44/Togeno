@@ -2,9 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { getBrandOrders, BrandOrder } from "@/services";
+import { OrderService } from "@/services/order.service";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Table,
   TableBody,
@@ -19,6 +30,7 @@ import {
   Download,
   Package,
   ExternalLink,
+  XCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -28,6 +40,26 @@ export default function BrandOrdersPage() {
   const [orders, setOrders] = useState<BrandOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [confirmOrderId, setConfirmOrderId] = useState<string | null>(null);
+
+  const cancellableStatuses = ["pending", "confirmed", "processing"];
+
+  async function handleCancelOrder(orderId: string) {
+    setConfirmOrderId(null);
+    setCancellingId(orderId);
+    try {
+      await OrderService.brandCancelOrder(orderId);
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status: "cancelled" } : o))
+      );
+      toast.success("Order cancelled. Refund will be processed if applicable.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to cancel order");
+    } finally {
+      setCancellingId(null);
+    }
+  }
 
   useEffect(() => {
     loadOrders();
@@ -142,13 +174,14 @@ export default function BrandOrdersPage() {
               <TableHead className="text-zinc-500">AWB</TableHead>
               <TableHead className="text-zinc-500">Shipment</TableHead>
               <TableHead className="text-zinc-500">Label</TableHead>
+              <TableHead className="text-zinc-500">Action</TableHead>
             </TableRow>
           </TableHeader>
 
           <TableBody>
             {filteredOrders.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="h-40 text-center">
+                <TableCell colSpan={11} className="h-40 text-center">
                   <div className="flex flex-col items-center gap-2 text-zinc-500">
                     <Package className="h-6 w-6 text-zinc-700" />
                     No orders found
@@ -248,12 +281,55 @@ export default function BrandOrdersPage() {
                       </span>
                     )}
                   </TableCell>
+
+                  {/* Cancel */}
+                  <TableCell>
+                    {cancellableStatuses.includes(order.status) ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                        disabled={cancellingId === order.id}
+                        onClick={() => setConfirmOrderId(order.id)}
+                      >
+                        {cancellingId === order.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <XCircle className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    ) : (
+                      <span className="text-zinc-700 text-xs">—</span>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
       </div>
+
+      <AlertDialog open={!!confirmOrderId} onOpenChange={(open) => !open && setConfirmOrderId(null)}>
+        <AlertDialogContent className="bg-[#0e0e0e] border border-[#1f1f1f] text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel this order?</AlertDialogTitle>
+            <AlertDialogDescription className="text-zinc-400">
+              This will cancel the customer's order. If payment was made, a full refund will be initiated automatically.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-transparent border-[#2a2a2a] text-zinc-300 hover:bg-white/5">
+              Keep Order
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => confirmOrderId && handleCancelOrder(confirmOrderId)}
+              className="bg-red-600 hover:bg-red-500 text-white"
+            >
+              Cancel Order
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

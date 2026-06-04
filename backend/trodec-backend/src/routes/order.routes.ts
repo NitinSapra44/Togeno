@@ -80,6 +80,7 @@ router.patch(
  * Cancel order
  */
 router.post("/:id/cancel", authenticate, orderController.cancelOrder);
+router.post("/:id/brand-cancel", authenticate, requireRole("brand_admin"), orderController.brandCancelOrder);
 
 /**
  * PATCH /orders/:id

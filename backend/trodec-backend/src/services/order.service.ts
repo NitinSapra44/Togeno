@@ -607,10 +607,9 @@ class OrderService {
   /**
    * Cancel order — only allowed from non-terminal, pre-shipped statuses.
    */
-  async cancelOrder(orderId: string, userId: string): Promise<Order> {
+  async cancelOrder(orderId: string, userId?: string): Promise<Order> {
     const order = await this.getOrder(orderId, userId);
     if (!order) throw ApiError.notFound("Order not found");
-    // VALID_TRANSITIONS already enforces this, but give a clear message for the consumer
     if (!VALID_TRANSITIONS[order.status]?.includes("cancelled")) {
       throw ApiError.badRequest(`Cannot cancel order with status: ${order.status}`);
     }
