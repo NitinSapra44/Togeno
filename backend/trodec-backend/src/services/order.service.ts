@@ -111,8 +111,11 @@ export interface OrderItem {
   brandId: string;
   productName: string;
   productPrice: number;
+  price: number;
   quantity: number;
   subtotal: number;
+  total: number;
+  imageUrl: string | null;
   selectedSize: string | null;
   createdAt: string;
 }
@@ -665,8 +668,11 @@ class OrderService {
           brandId: ir.brand_id,
           productName: ir.product_name,
           productPrice: ir.product_price,
+          price: ir.product_price,
           quantity: ir.quantity,
           subtotal: ir.subtotal,
+          total: ir.subtotal,
+          imageUrl: ir.product_image_url ?? null,
           selectedSize: ir.selected_size ?? null,
           createdAt: ir.created_at,
         }));

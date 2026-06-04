@@ -212,17 +212,8 @@ class BrandController {
       const limitNum = Math.max(1, parseInt(limit) || 20);
       const offset = (pageNum - 1) * limitNum;
 
-      const { data: products } = await supabaseAdmin
-        .from('products')
-        .select('id')
-        .eq('brand_id', brandId);
-
-      const productIds = products?.map(p => p.id) || [];
-
-      if (productIds.length === 0) {
-        return sendSuccess(res, { data: [], pagination: { page: pageNum, limit: limitNum, total: 0 } });
-      }
-
+      // Filter directly by brand_id on order_items (set at order-creation time from product.brand_id).
+      // This avoids a fragile 2-step products sub-query that could silently return empty on error.
       let query = supabaseAdmin
         .from('order_items')
         .select(`
@@ -230,13 +221,14 @@ class BrandController {
           order_id,
           product_id,
           product_name,
+          product_image_url,
           product_price,
           quantity,
           subtotal,
           selected_size,
           orders!inner(id, order_number, status, total, created_at)
         `, { count: 'exact' })
-        .in('product_id', productIds)
+        .eq('brand_id', brandId)
         .range(offset, offset + limitNum - 1)
         .order('created_at', { referencedTable: 'orders', ascending: false });
 
@@ -284,6 +276,7 @@ class BrandController {
           total: item.orders?.total,
           createdAt: item.orders?.created_at,
           productName: item.product_name,
+          productImage: item.product_image_url ?? null,
           productPrice: item.product_price,
           quantity: item.quantity,
           subtotal: item.subtotal,
