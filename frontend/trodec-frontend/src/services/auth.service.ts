@@ -30,6 +30,7 @@ export interface ExpertDetails {
   verificationDate: string | null;
   rating: number;
   totalReviews: number;
+  clothingSizes: Record<string, string>;
 }
 
 export interface BrandDetails {
