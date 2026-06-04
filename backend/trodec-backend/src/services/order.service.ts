@@ -124,6 +124,7 @@ export interface OrderItemRow {
   brand_id: string;
   product_name: string;
   product_price: number;
+  product_image_url: string | null;
   quantity: number;
   subtotal: number;
   selected_size: string | null;
@@ -168,8 +169,11 @@ export function toOrderItem(row: OrderItemRow): OrderItem {
     brandId: row.brand_id,
     productName: row.product_name,
     productPrice: row.product_price,
+    price: row.product_price,      // alias expected by frontend
     quantity: row.quantity,
     subtotal: row.subtotal,
+    total: row.subtotal,            // alias expected by frontend
+    imageUrl: row.product_image_url ?? null,
     selectedSize: row.selected_size ?? null,
     createdAt: row.created_at,
   };
