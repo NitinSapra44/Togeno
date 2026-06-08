@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { adminController } from '@/controllers/admin.controller';
 import { uploadController } from '@/controllers/upload.controller';
+import { logisticsController } from '@/controllers/logistics.controller';
 import { authenticate, requireRole } from '@/middleware';
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -111,5 +112,17 @@ router.post(
   upload.single('file'),
   uploadController.uploadShipmentLabel.bind(uploadController)
 );
+
+/**
+ * POST /admin/shipments/:id/retry-awb
+ * Assign AWB if missing, then regenerate label + invoice + manifest.
+ */
+router.post('/shipments/:id/retry-awb', logisticsController.retryAwb.bind(logisticsController));
+
+/**
+ * POST /admin/shipments/:id/retry-documents
+ * Regenerate label + invoice + manifest for a shipment that already has an AWB.
+ */
+router.post('/shipments/:id/retry-documents', logisticsController.retryDocuments.bind(logisticsController));
 
 export default router;

@@ -1305,6 +1305,138 @@ class LogisticsService {
 
     return data ? toShipment(data as ShipmentRow) : null;
   }
+
+  /**
+   * Retry AWB assignment for a shipment that has no AWB yet.
+   * After a successful AWB, also regenerates label + invoice + manifest.
+   */
+  async retryAwbAndDocuments(shipmentId: string): Promise<{
+    awbCode: string | null;
+    labelUrl: string | null;
+    invoiceUrl: string | null;
+    manifestUrl: string | null;
+    freightCharge: number | null;
+  }> {
+    const { data, error } = await supabaseAdmin
+      .from("shipments")
+      .select("id, awb_code, shiprocket_shipment_id, shiprocket_order_id, order_id, label_url, invoice_url, manifest_url")
+      .eq("id", shipmentId)
+      .single();
+
+    if (error || !data) throw ApiError.notFound("Shipment not found");
+
+    const row = data as {
+      awb_code: string | null;
+      shiprocket_shipment_id: string | null;
+      shiprocket_order_id: string | null;
+      order_id: string | null;
+      label_url: string | null;
+      invoice_url: string | null;
+      manifest_url: string | null;
+    };
+
+    if (!row.shiprocket_shipment_id) {
+      throw ApiError.badRequest("No Shiprocket shipment ID — the order must be created on Shiprocket first.");
+    }
+
+    let awbCode = row.awb_code;
+    let freightCharge: number | null = null;
+
+    if (!awbCode) {
+      const awbResult = await shiprocketClient.assignCourier(Number(row.shiprocket_shipment_id));
+      awbCode        = awbResult.awbCode;
+      freightCharge  = awbResult.freightCharge;
+
+      await supabaseAdmin
+        .from("shipments")
+        .update({ awb_code: awbCode, tracking_id: awbCode })
+        .eq("id", shipmentId);
+
+      if (freightCharge != null && row.order_id) {
+        await supabaseAdmin
+          .from("orders")
+          .update({ actual_shipping_cost: freightCharge })
+          .eq("id", row.order_id);
+      }
+
+      logger.info("AWB assigned via retry", { shipmentId, awbCode });
+    }
+
+    // Generate all documents now that AWB is available
+    return this.retryDocuments(shipmentId);
+  }
+
+  /**
+   * Regenerate label + invoice + manifest for a shipment that already has an AWB.
+   * Only overwrites existing URLs if Shiprocket returns a new one.
+   */
+  async retryDocuments(shipmentId: string): Promise<{
+    awbCode: string | null;
+    labelUrl: string | null;
+    invoiceUrl: string | null;
+    manifestUrl: string | null;
+    freightCharge: number | null;
+  }> {
+    const { data, error } = await supabaseAdmin
+      .from("shipments")
+      .select("id, awb_code, shiprocket_shipment_id, shiprocket_order_id, label_url, invoice_url, manifest_url")
+      .eq("id", shipmentId)
+      .single();
+
+    if (error || !data) throw ApiError.notFound("Shipment not found");
+
+    const row = data as {
+      awb_code: string | null;
+      shiprocket_shipment_id: string | null;
+      shiprocket_order_id: string | null;
+      label_url: string | null;
+      invoice_url: string | null;
+      manifest_url: string | null;
+    };
+
+    if (!row.awb_code) {
+      throw ApiError.badRequest("No AWB assigned yet — retry AWB first.");
+    }
+    if (!row.shiprocket_shipment_id) {
+      throw ApiError.badRequest("No Shiprocket shipment ID found.");
+    }
+
+    const patch: Record<string, string> = {};
+    const results = {
+      awbCode:      row.awb_code,
+      labelUrl:     row.label_url,
+      invoiceUrl:   row.invoice_url,
+      manifestUrl:  row.manifest_url,
+      freightCharge: null as number | null,
+    };
+
+    // Retry label
+    const labelUrl = await shiprocketClient.generateLabel(row.shiprocket_shipment_id);
+    if (!labelUrl && row.shiprocket_order_id) {
+      // Fallback: try order details endpoint
+      const fallback = await shiprocketClient.getLabelFromOrderDetails(row.shiprocket_order_id);
+      if (fallback) { patch.label_url = fallback; results.labelUrl = fallback; }
+    } else if (labelUrl) {
+      patch.label_url = labelUrl; results.labelUrl = labelUrl;
+    }
+
+    // Retry invoice
+    if (row.shiprocket_order_id) {
+      const invoiceUrl = await shiprocketClient.generateInvoice(row.shiprocket_order_id);
+      if (invoiceUrl) { patch.invoice_url = invoiceUrl; results.invoiceUrl = invoiceUrl; }
+    }
+
+    // Retry manifest
+    const manifestUrl = await shiprocketClient.generateManifest(row.shiprocket_shipment_id);
+    if (manifestUrl) { patch.manifest_url = manifestUrl; results.manifestUrl = manifestUrl; }
+
+    if (Object.keys(patch).length > 0) {
+      await supabaseAdmin.from("shipments").update(patch).eq("id", shipmentId);
+      logger.info("Documents retried", { shipmentId, updated: Object.keys(patch) });
+    }
+
+    return results;
+  }
 }
 
 export const logisticsService = new LogisticsService();

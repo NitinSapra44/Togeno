@@ -47,6 +47,36 @@ class LogisticsController {
     }
   }
 
+  /**
+   * POST /api/admin/shipments/:id/retry-awb
+   * Assigns a courier + AWB for a shipment that has no AWB yet.
+   * Also regenerates label + invoice + manifest after a successful AWB assignment.
+   */
+  async retryAwb(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const shipmentId = req.params["id"] as string;
+      const result = await logisticsService.retryAwbAndDocuments(shipmentId);
+      sendSuccess(res, result, 200, "AWB assigned successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /api/admin/shipments/:id/retry-documents
+   * Regenerates label + invoice + manifest for a shipment that already has an AWB.
+   * Safe to call multiple times — only overwrites if a new URL is returned.
+   */
+  async retryDocuments(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const shipmentId = req.params["id"] as string;
+      const result = await logisticsService.retryDocuments(shipmentId);
+      sendSuccess(res, result, 200, "Documents regenerated");
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async shiprocketWebhook(req: Request, res: Response) {
     try {
       const payload = req.body as Record<string, unknown>;

@@ -284,6 +284,8 @@ export interface AdminShipmentRow {
   awb_code: string | null;
   tracking_url: string | null;
   label_url: string | null;
+  invoice_url: string | null;
+  manifest_url: string | null;
   shiprocket_order_id: string | null;
   shiprocket_shipment_id: string | null;
   shipped_at: string | null;
@@ -291,6 +293,32 @@ export interface AdminShipmentRow {
   created_at: string;
   order: { id: string; order_number: string; user_id: string } | null;
   pitch: { id: string; status: string } | null;
+}
+
+export interface ShipmentRetryResult {
+  awbCode: string | null;
+  labelUrl: string | null;
+  invoiceUrl: string | null;
+  manifestUrl: string | null;
+  freightCharge: number | null;
+}
+
+export async function retryShipmentAwb(shipmentId: string): Promise<ShipmentRetryResult> {
+  try {
+    const res = await api.post<ApiSuccessResponse<ShipmentRetryResult>>(`/admin/shipments/${shipmentId}/retry-awb`);
+    return res.data.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
+}
+
+export async function retryShipmentDocuments(shipmentId: string): Promise<ShipmentRetryResult> {
+  try {
+    const res = await api.post<ApiSuccessResponse<ShipmentRetryResult>>(`/admin/shipments/${shipmentId}/retry-documents`);
+    return res.data.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
 }
 
 export async function getAdminPitches(params?: {

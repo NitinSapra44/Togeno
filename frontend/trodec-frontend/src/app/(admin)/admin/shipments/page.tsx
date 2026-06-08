@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Loader2, Truck, ExternalLink, Upload, Download } from "lucide-react";
+import { Loader2, Truck, ExternalLink, Upload, Download, RefreshCw, FileText, ClipboardList, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-import { getAdminShipments, uploadShipmentLabel, AdminShipmentRow, PaginatedResult } from "@/services/admin.service";
+import {
+  getAdminShipments, uploadShipmentLabel,
+  retryShipmentAwb, retryShipmentDocuments,
+  AdminShipmentRow, PaginatedResult,
+} from "@/services/admin.service";
 
 const STATUS_STYLES: Record<string, string> = {
   PENDING:          "bg-amber-500/10 text-amber-400",
@@ -20,6 +24,7 @@ export default function AdminShipmentsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingShipmentId = useRef<string | null>(null);
 
@@ -60,6 +65,48 @@ export default function AdminShipmentsPage() {
     } finally {
       setUploadingId(null);
       pendingShipmentId.current = null;
+    }
+  }
+
+  function updateShipment(id: string, patch: Partial<AdminShipmentRow>) {
+    setData((prev) => prev ? {
+      ...prev,
+      data: prev.data.map((s) => s.id === id ? { ...s, ...patch } : s),
+    } : prev);
+  }
+
+  async function handleRetryAwb(shipmentId: string) {
+    setRetryingId(shipmentId);
+    try {
+      const result = await retryShipmentAwb(shipmentId);
+      updateShipment(shipmentId, {
+        awb_code: result.awbCode,
+        label_url: result.labelUrl,
+        invoice_url: result.invoiceUrl,
+        manifest_url: result.manifestUrl,
+      });
+      toast.success(`AWB assigned: ${result.awbCode}`);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to assign AWB");
+    } finally {
+      setRetryingId(null);
+    }
+  }
+
+  async function handleRetryDocuments(shipmentId: string) {
+    setRetryingId(shipmentId);
+    try {
+      const result = await retryShipmentDocuments(shipmentId);
+      updateShipment(shipmentId, {
+        label_url: result.labelUrl,
+        invoice_url: result.invoiceUrl,
+        manifest_url: result.manifestUrl,
+      });
+      toast.success("Documents regenerated");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to regenerate documents");
+    } finally {
+      setRetryingId(null);
     }
   }
 
@@ -119,7 +166,10 @@ export default function AdminShipmentsPage() {
                 <th className="text-left px-4 py-3 text-xs font-medium text-zinc-400">Shipped</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-zinc-400">Delivered</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-zinc-400">Label</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-400">Invoice</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-400">Manifest</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-zinc-400">Track</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-400">Retry</th>
               </tr>
             </thead>
             <tbody>
@@ -178,6 +228,27 @@ export default function AdminShipmentsPage() {
                       </button>
                     )}
                   </td>
+                  {/* Invoice */}
+                  <td className="px-4 py-3">
+                    {shipment.invoice_url ? (
+                      <a href={shipment.invoice_url} target="_blank" rel="noreferrer"
+                        className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                        <FileText className="w-3.5 h-3.5" /> View
+                      </a>
+                    ) : <span className="text-zinc-700 text-xs">—</span>}
+                  </td>
+
+                  {/* Manifest */}
+                  <td className="px-4 py-3">
+                    {shipment.manifest_url ? (
+                      <a href={shipment.manifest_url} target="_blank" rel="noreferrer"
+                        className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300 transition-colors">
+                        <ClipboardList className="w-3.5 h-3.5" /> View
+                      </a>
+                    ) : <span className="text-zinc-700 text-xs">—</span>}
+                  </td>
+
+                  {/* Track */}
                   <td className="px-4 py-3">
                     {shipment.tracking_url ? (
                       <a href={shipment.tracking_url} target="_blank" rel="noreferrer"
@@ -185,6 +256,48 @@ export default function AdminShipmentsPage() {
                         <ExternalLink className="w-4 h-4" />
                       </a>
                     ) : <span className="text-zinc-700">—</span>}
+                  </td>
+
+                  {/* Retry actions */}
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      {/* Retry AWB — only when no AWB yet but Shiprocket shipment exists */}
+                      {!shipment.awb_code && shipment.shiprocket_shipment_id && (
+                        <button
+                          onClick={() => handleRetryAwb(shipment.id)}
+                          disabled={retryingId === shipment.id}
+                          title="Assign AWB + generate all documents"
+                          className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 transition-colors disabled:opacity-50"
+                        >
+                          {retryingId === shipment.id
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <RotateCcw className="w-3.5 h-3.5" />}
+                          AWB
+                        </button>
+                      )}
+                      {/* Retry documents — when AWB exists but any document is missing */}
+                      {shipment.awb_code && (!shipment.label_url || !shipment.invoice_url || !shipment.manifest_url) && (
+                        <button
+                          onClick={() => handleRetryDocuments(shipment.id)}
+                          disabled={retryingId === shipment.id}
+                          title="Regenerate missing label / invoice / manifest"
+                          className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 transition-colors disabled:opacity-50"
+                        >
+                          {retryingId === shipment.id
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <RefreshCw className="w-3.5 h-3.5" />}
+                          Docs
+                        </button>
+                      )}
+                      {/* All good */}
+                      {shipment.awb_code && shipment.label_url && shipment.invoice_url && shipment.manifest_url && (
+                        <span className="text-xs text-emerald-600">✓ Complete</span>
+                      )}
+                      {/* Nothing to retry */}
+                      {!shipment.awb_code && !shipment.shiprocket_shipment_id && (
+                        <span className="text-zinc-700 text-xs">—</span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
