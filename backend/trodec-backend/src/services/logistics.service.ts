@@ -821,6 +821,37 @@ class LogisticsService {
           .update({ actual_shipping_cost: freightCharge })
           .eq("id", orderId);
         logger.info("Actual shipping cost stored", { orderId, freightCharge });
+
+        // If the order is already delivered and a brand_payout exists with shipping_cost = 0,
+        // recalculate it now that we have the real freight charge.
+        const { data: orderStatusRow } = await supabaseAdmin
+          .from("orders")
+          .select("status")
+          .eq("id", orderId)
+          .single();
+
+        if ((orderStatusRow as any)?.status === "delivered") {
+          const { data: existingPayout } = await supabaseAdmin
+            .from("brand_payouts")
+            .select("id, order_amount, platform_commission, shipping_cost")
+            .eq("order_id", orderId)
+            .maybeSingle();
+
+          if (existingPayout && Number((existingPayout as any).shipping_cost) === 0) {
+            const orderAmount        = Number((existingPayout as any).order_amount);
+            const platformCommission = Number((existingPayout as any).platform_commission);
+            const newBrandNet        = Math.round((orderAmount - freightCharge - platformCommission) * 100) / 100;
+
+            await supabaseAdmin
+              .from("brand_payouts")
+              .update({ shipping_cost: freightCharge, brand_net: newBrandNet })
+              .eq("id", (existingPayout as any).id);
+
+            logger.info("Brand payout corrected with real freight charge", {
+              orderId, freightCharge, newBrandNet,
+            });
+          }
+        }
       }
 
       // Generate label, invoice, manifest (all best-effort)
