@@ -936,6 +936,7 @@ class LogisticsService {
 
     const shipment = toShipment(shipmentRow as ShipmentRow);
 
+    // FORWARD shipment → sync order status
     if (shipment.orderId) {
       const orderStatusMap: Partial<Record<ShipmentStatus, "shipped" | "delivered" | "cancelled">> = {
         SHIPPED:   "shipped",
@@ -950,6 +951,33 @@ class LogisticsService {
             logger.error("Failed to sync order status from shipment webhook", { orderId: shipment.orderId, newOrderStatus, err })
           )
         );
+      }
+    }
+
+    // SAMPLE shipment → sync pitch status automatically
+    // This replaces the manual "Mark Shipped" (brand) and "Confirm Receipt" (expert) buttons
+    if (shipment.pitchId && shipment.type === "SAMPLE") {
+      const pitchStatusMap: Partial<Record<ShipmentStatus, string>> = {
+        SHIPPED:   "shipped",
+        DELIVERED: "delivered",
+        RETURNED:  "cancelled",
+        RTO:       "cancelled",
+      };
+      const newPitchStatus = pitchStatusMap[status];
+
+      if (newPitchStatus) {
+        const pitchUpdate: Record<string, string> = { status: newPitchStatus };
+        if (status === "SHIPPED")   pitchUpdate.shipped_at   = new Date().toISOString();
+        if (status === "DELIVERED") pitchUpdate.delivered_at = new Date().toISOString();
+
+        supabaseAdmin
+          .from("pitches")
+          .update(pitchUpdate)
+          .eq("id", shipment.pitchId)
+          .then(
+            () => logger.info("Pitch status auto-synced from SAMPLE shipment", { pitchId: shipment.pitchId, newPitchStatus }),
+            (err: unknown) => logger.error("Failed to sync pitch status from shipment", { pitchId: shipment.pitchId, err })
+          );
       }
     }
 

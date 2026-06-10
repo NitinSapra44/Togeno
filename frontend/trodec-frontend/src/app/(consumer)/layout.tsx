@@ -109,8 +109,9 @@ export default function ConsumerLayout({
   useEffect(() => {
     if (!isChecking && profile) {
       const role = profile.role;
-      if (role !== "consumer" && role !== "admin") {
+      if (role !== "consumer") {
         const roleRoutes: Record<string, string> = {
+          admin: "/admin/dashboard",
           expert: "/expert/dashboard",
           brand_admin: "/brand/dashboard",
         };
@@ -168,7 +169,7 @@ export default function ConsumerLayout({
   // briefly hits /consumer/* would still mount <CartProvider> and trigger a
   // cart fetch under the wrong account context.
   const wrongRoleForConsumer = Boolean(
-    profile && profile.role !== "consumer" && profile.role !== "admin"
+    profile && profile.role !== "consumer"
   );
 
   if (!hydrated || isChecking || !isAuthenticated || wrongRoleForConsumer) {

@@ -49,6 +49,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [isChecking, setIsChecking] = useState(true);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
+  const roleRoutes: Record<string, string> = {
+    consumer: "/consumer/dashboard",
+    expert: "/expert/dashboard",
+    brand_admin: "/brand/dashboard",
+  };
+
   useEffect(() => {
     if (!hydrated) return;
     const checkAuth = async () => {
@@ -59,6 +65,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
 
       if (useAuthStore.getState().isAuthenticated) {
+        const currentProfile = useAuthStore.getState().profile;
+        if (currentProfile && currentProfile.role !== "admin") {
+          router.push(roleRoutes[currentProfile.role] ?? "/consumer/dashboard");
+          return;
+        }
         setIsChecking(false);
         return;
       }
@@ -69,6 +80,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         router.push("/admin/login");
         return;
       }
+
+      const currentProfile = useAuthStore.getState().profile;
+      if (currentProfile && currentProfile.role !== "admin") {
+        router.push(roleRoutes[currentProfile.role] ?? "/consumer/dashboard");
+        return;
+      }
+
       setIsChecking(false);
     };
     checkAuth();
@@ -79,14 +97,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (!isChecking && profile) {
       const role = profile.role;
       if (role !== "admin") {
-        const roleRoutes: Record<string, string> = {
-          consumer: "/consumer/dashboard",
-          expert: "/expert/dashboard",
-          brand_admin: "/brand/dashboard",
-        };
         router.push(roleRoutes[role] ?? "/consumer/dashboard");
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isChecking, profile, router]);
 
   const handleLogoutConfirm = async () => {

@@ -31,7 +31,6 @@ function NewPitchForm() {
     communityId: preselectedCommunityId,
     expertId: "",
     message: "",
-    selectedSize: "",
   });
   const [expertClothingSizes, setExpertClothingSizes] = useState<Record<string, string>>({});
 
@@ -70,7 +69,7 @@ function NewPitchForm() {
   }
 
   async function handleCommunityChange(id: string) {
-    setFormData((prev) => ({ ...prev, communityId: id, expertId: "", selectedSize: "" }));
+    setFormData((prev) => ({ ...prev, communityId: id, expertId: "" }));
     setExperts([]);
     setExpertClothingSizes({});
 
@@ -80,7 +79,7 @@ function NewPitchForm() {
     const creator = selected?.creator;
     if (creator?.id) {
       setExperts([{ id: creator.id, full_name: creator.full_name ?? null, email: creator.email ?? "" }]);
-      setFormData((prev) => ({ ...prev, communityId: id, expertId: creator.id, selectedSize: "" }));
+      setFormData((prev) => ({ ...prev, communityId: id, expertId: creator.id }));
       // Fetch expert's clothing sizes
       try {
         const resp = await api.get<any>(`/users/${creator.id}/expert-details`);
@@ -119,7 +118,6 @@ function NewPitchForm() {
         communityId: formData.communityId,
         expertId: formData.expertId,
         message: formData.message || undefined,
-        selectedSize: formData.selectedSize || null,
       });
 
       toast.success("Pitch created successfully");
@@ -244,8 +242,8 @@ function NewPitchForm() {
               </select>
             </div>
 
-            {/* Size picker — only shown when selected product has sizes */}
-            {(() => {
+            {/* Sizing info — read-only display for brand */}
+            {formData.expertId && (() => {
               const selectedProduct = products.find((p) => p.id === formData.productId);
               const sizesRaw = selectedProduct?.metadata?.attributes?.sizes ?? selectedProduct?.metadata?.sizes ?? [];
               const availableSizes: string[] = Array.isArray(sizesRaw)
@@ -253,50 +251,43 @@ function NewPitchForm() {
                 : typeof sizesRaw === "string" && sizesRaw
                   ? sizesRaw.split(",").map((s: string) => s.trim()).filter(Boolean)
                   : [];
-              if (availableSizes.length === 0) return null;
-
-              // Try to guess expert's preferred size from their clothing_sizes
-              const expertPreferred =
-                expertClothingSizes["clothing"] ||
-                expertClothingSizes["top"] ||
-                expertClothingSizes["size"] ||
-                Object.values(expertClothingSizes)[0] ||
-                "";
+              const sizeEntries = Object.entries(expertClothingSizes);
+              if (availableSizes.length === 0 && sizeEntries.length === 0) return null;
 
               return (
                 <div>
-                  <label className="text-sm text-zinc-400 mb-2 block">
-                    Sample Size *
-                    {expertPreferred && (
-                      <span className="ml-2 text-emerald-400 text-xs">
-                        Expert prefers: {expertPreferred}
-                      </span>
+                  <label className="text-sm text-zinc-400 mb-2 block">Sample Sizing Info</label>
+                  <div className="bg-[#0d0d0d] border border-[#1f1f1f] rounded-lg p-4 space-y-3">
+                    {availableSizes.length > 0 && (
+                      <div>
+                        <p className="text-xs text-zinc-500 mb-1.5">Product available sizes</p>
+                        <div className="flex flex-wrap gap-2">
+                          {availableSizes.map((size) => (
+                            <span
+                              key={size}
+                              className="px-3 py-1 rounded-md border border-[#2f2f2f] bg-[#111] text-zinc-300 text-sm font-medium"
+                            >
+                              {size}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
                     )}
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {availableSizes.map((size) => (
-                      <button
-                        key={size}
-                        type="button"
-                        onClick={() => setFormData((prev) => ({ ...prev, selectedSize: size }))}
-                        className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                          formData.selectedSize === size
-                            ? "bg-purple-600 border-purple-500 text-white"
-                            : size === expertPreferred
-                              ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-400"
-                              : "bg-[#111] border-[#1f1f1f] text-zinc-400 hover:border-zinc-600"
-                        }`}
-                      >
-                        {size}
-                        {size === expertPreferred && formData.selectedSize !== size && (
-                          <span className="ml-1 text-[10px]">★</span>
-                        )}
-                      </button>
-                    ))}
+                    {sizeEntries.length > 0 && (
+                      <div>
+                        <p className="text-xs text-zinc-500 mb-1.5">Expert&apos;s clothing sizes</p>
+                        <div className="flex flex-wrap gap-4">
+                          {sizeEntries.map(([key, value]) => (
+                            <div key={key} className="flex items-center gap-1.5">
+                              <span className="text-xs text-zinc-500 capitalize">{key}:</span>
+                              <span className="text-sm font-semibold text-emerald-400">{value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-xs text-zinc-600">The expert will choose their preferred size when they respond.</p>
                   </div>
-                  {expertPreferred && !formData.selectedSize && (
-                    <p className="text-xs text-zinc-600 mt-1.5">★ = expert&apos;s preferred size</p>
-                  )}
                 </div>
               );
             })()}

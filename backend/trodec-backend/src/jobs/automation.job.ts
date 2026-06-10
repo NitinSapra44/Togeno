@@ -114,7 +114,7 @@ async function retryFailedShipments(): Promise<void> {
 // ---------------------------------------------------------------------------
 // Job 2: Retry AWB assignment for shipments with no AWB
 // Runs every 30 minutes.
-// Finds FORWARD shipments that have a Shiprocket shipment ID but no AWB
+// Finds FORWARD + SAMPLE shipments that have a Shiprocket shipment ID but no AWB
 // (usually means wallet was empty at the time of creation).
 // ---------------------------------------------------------------------------
 async function retryPendingAwb(): Promise<void> {
@@ -123,7 +123,7 @@ async function retryPendingAwb(): Promise<void> {
   const { data: shipments } = await supabaseAdmin
     .from("shipments")
     .select("id, shiprocket_shipment_id, shiprocket_order_id, order_id")
-    .eq("type", "FORWARD")
+    .in("type", ["FORWARD", "SAMPLE"])
     .eq("status", "PENDING")
     .is("awb_code", null)
     .not("shiprocket_shipment_id", "is", null)
@@ -150,14 +150,14 @@ async function retryPendingAwb(): Promise<void> {
 // ---------------------------------------------------------------------------
 // Job 3: Sync live tracking for in-transit shipments
 // Runs every 2 hours.
-// Pulls latest events from Shiprocket for all SHIPPED shipments so the
-// consumer's timeline is up to date even if a webhook was missed.
+// Pulls latest events from Shiprocket for all SHIPPED shipments (FORWARD + SAMPLE)
+// so timelines stay up to date even if a webhook was missed.
 // ---------------------------------------------------------------------------
 async function syncActiveTracking(): Promise<void> {
   const { data: shipments } = await supabaseAdmin
     .from("shipments")
     .select("id, awb_code")
-    .eq("type", "FORWARD")
+    .in("type", ["FORWARD", "SAMPLE"])
     .eq("status", "SHIPPED")
     .not("awb_code", "is", null);
 
@@ -175,19 +175,20 @@ async function syncActiveTracking(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Job 4: Safety net — detect Shiprocket-delivered orders that missed webhook
+// Job 4: Safety net — detect missed delivery webhooks
 // Runs every 4 hours.
-// Checks SHIPPED shipments whose AWB Shiprocket says is delivered, then
-// marks the order as delivered to trigger commission + payout pipeline.
+// Checks ALL SHIPPED shipments (FORWARD + SAMPLE) whose AWB Shiprocket says
+// is delivered, then marks them delivered to trigger the right pipeline:
+//   FORWARD → commission + brand payout
+//   SAMPLE  → pitch status → delivered (expert can publish review)
 // ---------------------------------------------------------------------------
 async function syncDeliveredOrders(): Promise<void> {
   const { data: shipments } = await supabaseAdmin
     .from("shipments")
-    .select("id, awb_code, order_id")
-    .eq("type", "FORWARD")
+    .select("id, awb_code, order_id, pitch_id, type")
+    .in("type", ["FORWARD", "SAMPLE"])
     .eq("status", "SHIPPED")
-    .not("awb_code", "is", null)
-    .not("order_id", "is", null);
+    .not("awb_code", "is", null);
 
   if (!shipments?.length) return;
 

@@ -93,8 +93,9 @@ export default function BrandLayout({
   useEffect(() => {
     if (!isChecking && profile) {
       const role = profile.role;
-      if (role !== "brand_admin" && role !== "admin") {
+      if (role !== "brand_admin") {
         const roleRoutes: Record<string, string> = {
+          admin: "/admin/dashboard",
           consumer: "/consumer/dashboard",
           expert: "/expert/dashboard",
         };
@@ -125,7 +126,7 @@ export default function BrandLayout({
   // Block rendering for non-brand roles while the redirect above completes,
   // so brand-only content / fetches don't fire under the wrong account.
   const wrongRoleForBrand = Boolean(
-    profile && profile.role !== "brand_admin" && profile.role !== "admin"
+    profile && profile.role !== "brand_admin"
   );
 
   if (!hydrated || isChecking || !isAuthenticated || wrongRoleForBrand) {

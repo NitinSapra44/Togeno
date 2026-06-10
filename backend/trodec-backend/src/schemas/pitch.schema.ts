@@ -34,6 +34,7 @@ export const updatePitchSchema = z.object({
 export const respondToPitchSchema = z.object({
   status: z.enum(["accepted", "declined"]),
   expertResponse: z.string().max(2000, "Response must be at most 2000 characters").optional().nullable(),
+  selectedSize: z.string().max(50).optional().nullable(),
 });
 
 // Query params for listing pitches

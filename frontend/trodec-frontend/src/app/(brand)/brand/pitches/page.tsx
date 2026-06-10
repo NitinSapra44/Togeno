@@ -12,7 +12,6 @@ import {
   MoreVertical,
   Trash2,
   Eye,
-  Edit,
   Users,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -220,15 +219,6 @@ export default function BrandPitchesPage() {
                       >
                         <Eye className="w-4 h-4 mr-2" />
                         View
-                      </DropdownMenuItem>
-
-                      <DropdownMenuItem
-                        onClick={() =>
-                          router.push(`/brand/pitches/${pitch.id}/edit`)
-                        }
-                      >
-                        <Edit className="w-4 h-4 mr-2" />
-                        Edit
                       </DropdownMenuItem>
 
                       <DropdownMenuItem

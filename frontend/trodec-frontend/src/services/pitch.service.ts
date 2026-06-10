@@ -168,9 +168,9 @@ export async function getReceivedPitches(params?: {
 /**
  * Expert responds to a pitch - status must be "accepted" or "declined"
  */
-export async function respondToPitch(id: string, status: 'accepted' | 'declined', expertResponse?: string): Promise<Pitch> {
+export async function respondToPitch(id: string, status: 'accepted' | 'declined', expertResponse?: string, selectedSize?: string): Promise<Pitch> {
   try {
-    const response = await api.post<ApiSuccessResponse<Pitch>>(`/pitches/${id}/respond`, { status, expertResponse });
+    const response = await api.post<ApiSuccessResponse<Pitch>>(`/pitches/${id}/respond`, { status, expertResponse, selectedSize });
     return response.data.data;
   } catch (error) {
     throw new Error(getErrorMessage(error));

@@ -501,27 +501,6 @@ class OrderService {
         items: itemsData?.map((row) => toOrderItem(row as OrderItemRow)) || [],
       };
 
-      // 5. Send order confirmation email (fire-and-forget)
-      const { data: userProfile } = await supabaseAdmin
-        .from("profiles")
-        .select("email, full_name")
-        .eq("id", userId)
-        .maybeSingle();
-
-      if (userProfile?.email) {
-        emailService.sendOrderConfirmation({
-          to: userProfile.email,
-          customerName: userProfile.full_name ?? "Customer",
-          orderNumber: order.orderNumber,
-          orderTotal: order.total,
-          items: createdOrder.items.map((i) => ({
-            productName: i.productName,
-            quantity: i.quantity,
-            subtotal: i.subtotal,
-          })),
-        }).catch((err) => logger.error("Order confirmation email failed", { orderId: order.id, err }));
-      }
-
       return createdOrder;
     } catch (error) {
       logger.error("Failed to create order from cart", { error, userId });
@@ -599,6 +578,7 @@ class OrderService {
       .from("orders")
       .select("*, order_items(*)", { count: "exact" })
       .eq("user_id", userId)
+      .neq("status", "pending")
       .range(offset, offset + limit - 1)
       .order("created_at", { ascending: false });
 
@@ -744,6 +724,33 @@ class OrderService {
     }
 
     if (status === "confirmed") {
+      // Send order confirmation email now that payment is verified (fire-and-forget)
+      (async () => {
+        const { data: profile } = await supabaseAdmin
+          .from("profiles")
+          .select("email, full_name")
+          .eq("id", consumerId)
+          .maybeSingle();
+        if (!profile?.email) return;
+
+        const { data: itemRows } = await supabaseAdmin
+          .from("order_items")
+          .select("product_name, quantity, subtotal")
+          .eq("order_id", orderId);
+
+        emailService.sendOrderConfirmation({
+          to: profile.email,
+          customerName: profile.full_name ?? "Customer",
+          orderNumber: order.orderNumber,
+          orderTotal: order.total,
+          items: (itemRows ?? []).map((i) => ({
+            productName: i.product_name,
+            quantity: i.quantity,
+            subtotal: i.subtotal,
+          })),
+        }).catch((err) => logger.error("Order confirmation email failed", { orderId, err }));
+      })().catch(() => {});
+
       const toAddress = {
         name: orderRow.shipping_name,
         phone: orderRow.shipping_phone,

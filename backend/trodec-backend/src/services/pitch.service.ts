@@ -161,6 +161,8 @@ interface UpdatePitchData {
 interface RespondToPitchData {
   status: "accepted" | "declined";
   expertResponse?: string | null;
+  /** Size the expert wants — set when accepting; replaces brand-selected size */
+  selectedSize?: string | null;
 }
 
 class PitchService {
@@ -519,13 +521,19 @@ class PitchService {
       throw ApiError.badRequest("This pitch has expired");
     }
 
+    const pitchUpdate: Record<string, unknown> = {
+      status: data.status,
+      expert_response: data.expertResponse,
+      responded_at: new Date().toISOString(),
+    };
+    // Expert chooses their size when accepting — overrides any size the brand pre-selected
+    if (data.status === "accepted" && data.selectedSize) {
+      pitchUpdate.selected_size = data.selectedSize;
+    }
+
     const { data: pitchRow, error } = await supabaseAdmin
       .from("pitches")
-      .update({
-        status: data.status,
-        expert_response: data.expertResponse,
-        responded_at: new Date().toISOString(),
-      })
+      .update(pitchUpdate)
       .eq("id", pitchId)
       .select()
       .single();

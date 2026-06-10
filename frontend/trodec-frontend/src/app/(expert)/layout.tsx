@@ -100,8 +100,9 @@ export default function ExpertLayout({
   useEffect(() => {
     if (!isChecking && profile) {
       const role = profile.role;
-      if (role !== "expert" && role !== "admin") {
+      if (role !== "expert") {
         const roleRoutes: Record<string, string> = {
+          admin: "/admin/dashboard",
           consumer: "/consumer/dashboard",
           brand_admin: "/brand/dashboard",
         };
@@ -156,7 +157,7 @@ export default function ExpertLayout({
   // Block rendering for non-expert roles while the redirect above completes,
   // so expert-only content / fetches don't fire under the wrong account.
   const wrongRoleForExpert = Boolean(
-    profile && profile.role !== "expert" && profile.role !== "admin"
+    profile && profile.role !== "expert"
   );
 
   if (!hydrated || isChecking || !isAuthenticated || wrongRoleForExpert) {

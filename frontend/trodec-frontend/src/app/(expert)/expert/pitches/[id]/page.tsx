@@ -42,6 +42,7 @@ export default function ExpertPitchDetailPage() {
   const [responding, setResponding] = useState(false);
   const [confirmingReceipt, setConfirmingReceipt] = useState(false);
   const [expertResponse, setExpertResponse] = useState("");
+  const [selectedSize, setSelectedSize] = useState("");
   const [selectedImageIdx, setSelectedImageIdx] = useState(0);
 
   useEffect(() => {
@@ -64,7 +65,7 @@ export default function ExpertPitchDetailPage() {
   async function handleAccept() {
     try {
       setResponding(true);
-      await respondToPitch(id, "accepted", expertResponse || undefined);
+      await respondToPitch(id, "accepted", expertResponse || undefined, selectedSize || undefined);
       toast.success("Pitch accepted!");
       loadPitch();
     } catch (error: any) {
@@ -486,6 +487,30 @@ export default function ExpertPitchDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {(() => {
+              const sizesRaw = product?.metadata?.attributes?.sizes ?? product?.metadata?.sizes ?? [];
+              const availableSizes: string[] = Array.isArray(sizesRaw)
+                ? sizesRaw
+                : typeof sizesRaw === "string" && sizesRaw
+                  ? sizesRaw.split(",").map((s: string) => s.trim()).filter(Boolean)
+                  : [];
+              if (availableSizes.length === 0) return null;
+              return (
+                <div>
+                  <label className="text-sm text-zinc-400 mb-1.5 block">Select your size</label>
+                  <select
+                    value={selectedSize}
+                    onChange={(e) => setSelectedSize(e.target.value)}
+                    className="w-full bg-[#111111] border border-[#1f1f1f] text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:border-emerald-500/50"
+                  >
+                    <option value="">Pick your size (optional)</option>
+                    {availableSizes.map((size) => (
+                      <option key={size} value={size}>{size}</option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })()}
             <Textarea
               placeholder="Optional: add a message with your response..."
               value={expertResponse}
