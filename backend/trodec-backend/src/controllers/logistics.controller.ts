@@ -3,6 +3,7 @@ import { logisticsService, shiprocketClient } from "@/services/logistics.service
 import { sendSuccess } from "@/utils";
 import { AuthenticatedRequest } from "@/types";
 import { logger } from "@/utils/logger";
+import { env } from "@/config/env";
 
 class LogisticsController {
   /**
@@ -77,8 +78,19 @@ class LogisticsController {
     }
   }
 
-  async shiprocketWebhook(req: Request, res: Response) {
+  shiprocketWebhook = async (req: Request, res: Response): Promise<void> => {
     try {
+      // Verify token if configured (Shiprocket sends it as x-api-key header)
+      const configuredToken = env.SHIPROCKET_WEBHOOK_TOKEN;
+      if (configuredToken) {
+        const incoming = req.headers["x-api-key"] as string | undefined;
+        if (!incoming || incoming !== configuredToken) {
+          logger.warn("Shiprocket webhook: invalid token rejected");
+          res.status(200).json({ received: false, reason: "invalid_token" });
+          return;
+        }
+      }
+
       const payload = req.body as Record<string, unknown>;
       logger.info("Shiprocket webhook received", {
         status: payload.current_status,

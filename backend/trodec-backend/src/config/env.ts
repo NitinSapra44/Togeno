@@ -24,6 +24,7 @@ const envSchema = z.object({
   // Shiprocket
   SHIPROCKET_EMAIL: z.string().min(1),
   SHIPROCKET_PASSWORD: z.string().min(1),
+  SHIPROCKET_WEBHOOK_TOKEN: z.string().optional(),
 
   // CORS
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
