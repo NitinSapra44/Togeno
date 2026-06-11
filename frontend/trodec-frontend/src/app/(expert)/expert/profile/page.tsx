@@ -174,18 +174,34 @@ export default function ExpertProfilePage() {
             </CardHeader>
             <CardContent className="space-y-5">
               {[
-                { key: "clothing", label: "Clothing / Top size", placeholder: "e.g. M, L, XL" },
-                { key: "bottoms", label: "Bottoms / Pants size", placeholder: "e.g. 32, 34W×32L" },
-                { key: "shoes", label: "Shoe size", placeholder: "e.g. UK 10, EU 44, US 11" },
-              ].map(({ key, label, placeholder }) => (
+                {
+                  key: "clothing",
+                  label: "Clothing / Top size",
+                  options: ["XS", "S", "M", "L", "XL", "XXL", "3XL"],
+                },
+                {
+                  key: "bottoms",
+                  label: "Bottoms / Pants size",
+                  options: ["26", "28", "30", "32", "34", "36", "38", "40"],
+                },
+                {
+                  key: "shoes",
+                  label: "Shoe size",
+                  options: ["UK 5", "UK 6", "UK 7", "UK 8", "UK 9", "UK 10", "UK 11", "UK 12"],
+                },
+              ].map(({ key, label, options }) => (
                 <div key={key}>
                   <Label className="text-zinc-400 text-sm mb-1 block">{label}</Label>
-                  <Input
+                  <select
                     value={clothingSizes[key] ?? ""}
                     onChange={(e) => setClothingSizes((prev) => ({ ...prev, [key]: e.target.value }))}
-                    placeholder={placeholder}
-                    className="bg-[#111] border-[#1a1a1a] text-white max-w-xs"
-                  />
+                    className="bg-[#111] border border-[#1a1a1a] text-white max-w-xs w-full rounded-md px-3 py-2 text-sm focus:outline-none focus:border-purple-500/50"
+                  >
+                    <option value="">— Select —</option>
+                    {options.map((o) => (
+                      <option key={o} value={o}>{o}</option>
+                    ))}
+                  </select>
                 </div>
               ))}
               <div className="pt-2">

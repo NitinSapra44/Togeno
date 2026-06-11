@@ -203,8 +203,11 @@ export default function ExpertEarningsPage() {
                 <Card key={c.id} className="bg-[#0b0b0b] border-[#1a1a1a]">
                   <CardContent className="p-4 flex items-center justify-between flex-wrap gap-3">
                     <div>
-                      <p className="text-sm font-medium text-white">Order #{c.orderId.slice(0, 8).toUpperCase()}</p>
+                      <p className="text-sm font-medium text-white">
+                        {(c as any).productName ?? `Order #${((c as any).orderNumber ?? c.orderId.slice(0, 8)).toUpperCase()}`}
+                      </p>
                       <p className="text-xs text-zinc-500 mt-0.5">
+                        {(c as any).orderNumber ? `Order #${(c as any).orderNumber} · ` : ""}
                         Order total: ₹{Number(c.orderAmount).toFixed(2)} · {new Date(c.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
                       </p>
                     </div>

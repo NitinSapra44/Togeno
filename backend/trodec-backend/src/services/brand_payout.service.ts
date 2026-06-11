@@ -257,7 +257,7 @@ class BrandPayoutService {
       const share            = orderSubtotal > 0 ? brandSubtotal / orderSubtotal : 1;
       const brandShipping    = round2(shippingCost * share);
       const brandCommission  = round2(platformCommission * share);
-      const brandNet         = round2(brandSubtotal - brandShipping - brandCommission);
+      const brandNet         = round2(Math.max(0, brandSubtotal - brandShipping - brandCommission));
 
       const { data, error } = await supabaseAdmin
         .from("brand_payouts")

@@ -62,6 +62,9 @@ export interface Commission {
   withdrawalRequestId: string | null;
   createdAt: string;
   updatedAt: string;
+  // Enriched fields — populated in expert-facing queries
+  orderNumber?: string | null;
+  productName?: string | null;
 }
 
 function toCommission(row: CommissionRow): Commission {
@@ -204,7 +207,7 @@ class CommissionService {
 
     let query = supabaseAdmin
       .from("commissions")
-      .select("*", { count: "exact" })
+      .select("*, orders(order_number, order_items(product_name))", { count: "exact" })
       .eq("expert_id", expertId)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
@@ -239,7 +242,16 @@ class CommissionService {
     stats.paidOut = round2(stats.paidOut);
 
     return {
-      data: (data ?? []).map((r) => toCommission(r as CommissionRow)),
+      data: (data ?? []).map((r) => {
+        const base = toCommission(r as CommissionRow);
+        const order = (r as any).orders;
+        const items: any[] = order?.order_items ?? [];
+        return {
+          ...base,
+          orderNumber: order?.order_number ?? null,
+          productName: items[0]?.product_name ?? null,
+        };
+      }),
       pagination: { page, limit, total: count ?? 0 },
       stats,
     };
