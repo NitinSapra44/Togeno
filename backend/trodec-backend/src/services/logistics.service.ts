@@ -1219,7 +1219,7 @@ class LogisticsService {
   async refreshLabel(shipmentId: string): Promise<string | null> {
     const { data, error } = await supabaseAdmin
       .from("shipments")
-      .select("shiprocket_shipment_id, shiprocket_order_id, awb_code, label_url")
+      .select("shiprocket_shipment_id, shiprocket_order_id, awb_code, label_url, pitch_id, order_id")
       .eq("id", shipmentId)
       .single();
 
@@ -1230,9 +1230,44 @@ class LogisticsService {
       shiprocket_order_id: string | null;
       awb_code: string | null;
       label_url: string | null;
+      pitch_id: string | null;
+      order_id: string | null;
     };
 
     logger.info("Refreshing label", { shipmentId, shiprocketShipmentId: row.shiprocket_shipment_id });
+
+    // If Shiprocket IDs are missing, try to recover them by searching Shiprocket.
+    // This handles the case where the order was created on Shiprocket but our DB save
+    // failed (e.g. network error after creation), leaving the shipment with a fallback
+    // tracking ID like SAMPLE-xxx but no shiprocket_shipment_id in the DB.
+    if (!row.shiprocket_shipment_id || !row.shiprocket_order_id) {
+      const internalOrderId = row.pitch_id
+        ? `SMP-${row.pitch_id.replace(/-/g, "").slice(0, 16)}`
+        : row.order_id ?? null;
+
+      if (internalOrderId) {
+        try {
+          const recovered = await shiprocketClient.findShiprocketOrderByNumber(internalOrderId);
+          if (recovered) {
+            const patch: Record<string, string> = {
+              shiprocket_order_id: recovered.shiprocketOrderId,
+              shiprocket_shipment_id: recovered.shiprocketShipmentId,
+            };
+            if (recovered.awbCode) {
+              patch.awb_code = recovered.awbCode;
+              patch.tracking_id = recovered.awbCode;
+            }
+            await supabaseAdmin.from("shipments").update(patch).eq("id", shipmentId);
+            row.shiprocket_order_id    = recovered.shiprocketOrderId;
+            row.shiprocket_shipment_id = recovered.shiprocketShipmentId;
+            if (recovered.awbCode) row.awb_code = recovered.awbCode;
+            logger.info("Recovered Shiprocket IDs during label refresh", { shipmentId, ...recovered });
+          }
+        } catch (err) {
+          logger.warn("Failed to recover Shiprocket order during label refresh", { shipmentId, err });
+        }
+      }
+    }
 
     let labelUrl: string | null = null;
 
