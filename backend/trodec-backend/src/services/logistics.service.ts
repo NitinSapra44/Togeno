@@ -1219,7 +1219,7 @@ class LogisticsService {
   async refreshLabel(shipmentId: string): Promise<string | null> {
     const { data, error } = await supabaseAdmin
       .from("shipments")
-      .select("shiprocket_shipment_id, shiprocket_order_id, awb_code, label_url, pitch_id, order_id")
+      .select("shiprocket_shipment_id, shiprocket_order_id, awb_code, label_url, pitch_id, order_id, type, from_address, to_address")
       .eq("id", shipmentId)
       .single();
 
@@ -1232,14 +1232,15 @@ class LogisticsService {
       label_url: string | null;
       pitch_id: string | null;
       order_id: string | null;
+      type: string;
+      from_address: Record<string, unknown>;
+      to_address: Record<string, unknown>;
     };
 
     logger.info("Refreshing label", { shipmentId, shiprocketShipmentId: row.shiprocket_shipment_id });
 
-    // If Shiprocket IDs are missing, try to recover them by searching Shiprocket.
-    // This handles the case where the order was created on Shiprocket but our DB save
-    // failed (e.g. network error after creation), leaving the shipment with a fallback
-    // tracking ID like SAMPLE-xxx but no shiprocket_shipment_id in the DB.
+    // Step 1: If Shiprocket IDs are missing, try to recover them by searching Shiprocket.
+    // This handles the case where the order was created on Shiprocket but our DB save failed.
     if (!row.shiprocket_shipment_id || !row.shiprocket_order_id) {
       const internalOrderId = row.pitch_id
         ? `SMP-${row.pitch_id.replace(/-/g, "").slice(0, 16)}`
@@ -1266,6 +1267,47 @@ class LogisticsService {
         } catch (err) {
           logger.warn("Failed to recover Shiprocket order during label refresh", { shipmentId, err });
         }
+      }
+    }
+
+    // Step 2: If still no Shiprocket IDs (order never reached Shiprocket), recreate it for SAMPLE shipments.
+    if (!row.shiprocket_shipment_id && row.type === "SAMPLE" && row.pitch_id) {
+      try {
+        const { data: pitchData } = await supabaseAdmin
+          .from("pitches")
+          .select("brand_id")
+          .eq("id", row.pitch_id)
+          .single();
+
+        const pickupLocation = (pitchData as any)?.brand_id
+          ? await shiprocketClient.getBrandPickupLocation((pitchData as any).brand_id as string).catch(() => "Primary")
+          : "Primary";
+
+        const result = await shiprocketClient.createForwardOrder({
+          internalOrderId: `SMP-${row.pitch_id.replace(/-/g, "").slice(0, 16)}`,
+          orderDate: new Date().toISOString().split("T")[0],
+          from: row.from_address as unknown as Parameters<typeof shiprocketClient.createForwardOrder>[0]["from"],
+          to:   row.to_address   as unknown as Parameters<typeof shiprocketClient.createForwardOrder>[0]["to"],
+          items: [{ name: "Product Sample", sku: "SAMPLE-001", units: 1, selling_price: 1 }],
+          totalAmount: 1,
+          pickupLocation,
+        });
+
+        const patch: Record<string, string> = {
+          shiprocket_order_id:    result.shiprocketOrderId,
+          shiprocket_shipment_id: result.shiprocketShipmentId,
+        };
+        if (result.trackingId) {
+          patch.awb_code    = result.trackingId;
+          patch.tracking_id = result.trackingId;
+        }
+        await supabaseAdmin.from("shipments").update(patch).eq("id", shipmentId);
+        row.shiprocket_order_id    = result.shiprocketOrderId;
+        row.shiprocket_shipment_id = result.shiprocketShipmentId;
+        if (result.trackingId) row.awb_code = result.trackingId;
+        logger.info("Recreated Shiprocket order during label refresh", { shipmentId, shiprocketOrderId: result.shiprocketOrderId });
+      } catch (err) {
+        logger.warn("Failed to recreate Shiprocket order during label refresh", { shipmentId, err });
       }
     }
 
