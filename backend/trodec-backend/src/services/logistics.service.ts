@@ -155,12 +155,28 @@ const TOKEN_TTL_MS = 9 * 24 * 60 * 60 * 1000;
 class ShiprocketClient {
   private token: string | null = null;
   private tokenExpiry: number = 0;
+  private tokenRefreshPromise: Promise<string> | null = null;
 
   private async getToken(forceRefresh = false): Promise<string> {
     if (!forceRefresh && this.token && Date.now() < this.tokenExpiry) {
       return this.token;
     }
 
+    if (forceRefresh) {
+      this.token = null;
+      this.tokenRefreshPromise = null;
+    }
+
+    if (!this.tokenRefreshPromise) {
+      this.tokenRefreshPromise = this._doLogin().finally(() => {
+        this.tokenRefreshPromise = null;
+      });
+    }
+
+    return this.tokenRefreshPromise;
+  }
+
+  private async _doLogin(): Promise<string> {
     const res = await fetch(`${SHIPROCKET_BASE}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
