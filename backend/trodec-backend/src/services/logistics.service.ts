@@ -164,13 +164,17 @@ class ShiprocketClient {
 
     if (forceRefresh) {
       this.token = null;
-      this.tokenRefreshPromise = null;
+      // Don't clear tokenRefreshPromise — reuse any in-flight login rather than
+      // firing a second concurrent request. A new one starts only if none is running.
     }
 
     if (!this.tokenRefreshPromise) {
-      this.tokenRefreshPromise = this._doLogin().finally(() => {
-        this.tokenRefreshPromise = null;
+      const p = this._doLogin().finally(() => {
+        if (this.tokenRefreshPromise === p) {
+          this.tokenRefreshPromise = null;
+        }
       });
+      this.tokenRefreshPromise = p;
     }
 
     return this.tokenRefreshPromise;
