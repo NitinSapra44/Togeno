@@ -1444,6 +1444,35 @@ class LogisticsService {
   }
 
   async getShipmentByPitchId(pitchId: string): Promise<Shipment | null> {
+    // Prefer the most recent record that already has a label (best UX for brand).
+    // If a failed SAMPLE-XXXX record was created after a successful one (e.g. during retries),
+    // this ensures the brand always sees the record they can actually download from.
+    const { data: labeled } = await supabaseAdmin
+      .from("shipments")
+      .select("*")
+      .eq("pitch_id", pitchId)
+      .eq("type", "SAMPLE")
+      .not("label_url", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (labeled) return toShipment(labeled as ShipmentRow);
+
+    // Next: prefer a record with an AWB (label can be regenerated from Shiprocket).
+    const { data: withAwb } = await supabaseAdmin
+      .from("shipments")
+      .select("*")
+      .eq("pitch_id", pitchId)
+      .eq("type", "SAMPLE")
+      .not("awb_code", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (withAwb) return toShipment(withAwb as ShipmentRow);
+
+    // Fall back: most recent SAMPLE record — "Get Label" will try to create/recover on Shiprocket.
     const { data, error } = await supabaseAdmin
       .from("shipments")
       .select("*")
