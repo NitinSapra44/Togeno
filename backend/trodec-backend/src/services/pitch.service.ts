@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "../config";
 import { ApiError } from "../utils";
 import { logger } from "../utils/logger";
-import { logisticsService, shiprocketClient } from "./logistics.service";
+import { logisticsService } from "./logistics.service";
 import { brandService } from "./brand.service";
 
 // Pitch status type
