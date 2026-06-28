@@ -174,7 +174,7 @@ export default function AdminShipmentsPage() {
             </thead>
             <tbody>
               {(data?.data ?? []).map((shipment) => (
-                <tr key={shipment.id} className="border-b border-[#1a1a1a] hover:bg-white/[0.02] transition-colors">
+                <tr key={shipment.id} className="border-b border-[#1a1a1a] hover:bg-white/2 transition-colors">
                   <td className="px-4 py-3">
                     <span className="text-xs font-medium text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded">
                       {shipment.type}
@@ -205,17 +205,18 @@ export default function AdminShipmentsPage() {
                     {shipment.delivered_at ? new Date(shipment.delivered_at).toLocaleDateString() : "—"}
                   </td>
                   <td className="px-4 py-3">
-                    {shipment.label_url ? (
-                      <a
-                        href={shipment.label_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        View
-                      </a>
-                    ) : (
+                    <div className="flex flex-col gap-1">
+                      {shipment.label_url && (
+                        <a
+                          href={shipment.label_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          View
+                        </a>
+                      )}
                       <button
                         onClick={() => handleUploadClick(shipment.id)}
                         disabled={uploadingId === shipment.id}
@@ -224,9 +225,9 @@ export default function AdminShipmentsPage() {
                         {uploadingId === shipment.id
                           ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           : <Upload className="w-3.5 h-3.5" />}
-                        Upload
+                        {shipment.label_url ? "Replace" : "Upload"}
                       </button>
-                    )}
+                    </div>
                   </td>
                   {/* Invoice */}
                   <td className="px-4 py-3">

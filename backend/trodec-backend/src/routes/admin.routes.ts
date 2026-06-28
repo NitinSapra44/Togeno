@@ -105,6 +105,12 @@ router.post('/orders/:id/create-shipment', adminController.createShipmentForOrde
 router.get('/pitches', adminController.listAllPitches.bind(adminController));
 
 /**
+ * POST /admin/pitches/:id/create-sample-shipment
+ * Manually create (or retry) a Shiprocket sample shipment for a pitch.
+ */
+router.post('/pitches/:id/create-sample-shipment', adminController.createSampleShipmentForPitch.bind(adminController));
+
+/**
  * GET /admin/shipments
  * List all shipments with order/pitch info and tracking data.
  */

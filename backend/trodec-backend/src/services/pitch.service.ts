@@ -605,7 +605,14 @@ class PitchService {
           : { address: updatedPitch.shippingAddress ?? "Expert address on file" };
 
         await brandService.syncPickupLocation(updatedPitch.brandId).catch(() => {});
-        const pickupLocation = await shiprocketClient.getBrandPickupLocation(updatedPitch.brandId);
+        // Read pickup location directly from DB — if sync failed (brand has no address),
+        // fall back to "Primary" (the Shiprocket default) instead of an unregistered derived name.
+        const { data: brandPickupData } = await supabaseAdmin
+          .from("brand_details")
+          .select("shiprocket_pickup_location")
+          .eq("id", updatedPitch.brandId)
+          .maybeSingle();
+        const pickupLocation = (brandPickupData as any)?.shiprocket_pickup_location ?? "Primary";
 
         logger.info("Sample shipment data", {
           pitchId,
@@ -709,7 +716,7 @@ class PitchService {
       .from("shipments")
       .update({ status: "DELIVERED", delivered_at: new Date().toISOString() })
       .eq("pitch_id", pitchId)
-      .in("status", ["PENDING", "IN_TRANSIT", "OUT_FOR_DELIVERY"]);
+      .in("status", ["PENDING", "SHIPPED", "OUT_FOR_DELIVERY"]);
 
     return toPitch(pitchRow as PitchRow);
   }

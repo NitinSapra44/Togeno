@@ -317,6 +317,120 @@ class AdminController {
   }
 
   /**
+   * POST /admin/pitches/:id/create-sample-shipment
+   * Manually create (or retry) a sample shipment for an accepted pitch.
+   * Deletes the stale no-AWB record if one exists before creating a new one.
+   */
+  async createSampleShipmentForPitch(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const pitchId = String(req.params['id']);
+
+      const { data: pitchRow, error: pitchErr } = await supabaseAdmin
+        .from('pitches')
+        .select('id, status, brand_id, expert_id')
+        .eq('id', pitchId)
+        .single();
+
+      if (pitchErr || !pitchRow) throw ApiError.notFound('Pitch not found');
+      if (!['accepted', 'shipped', 'delivered'].includes((pitchRow as any).status)) {
+        throw ApiError.badRequest('Can only create sample shipment for accepted, shipped, or delivered pitches');
+      }
+
+      const brandId  = (pitchRow as any).brand_id  as string;
+      const expertId = (pitchRow as any).expert_id as string;
+
+      // Check for an existing SAMPLE shipment that already has an AWB
+      const { data: existingWithAwb } = await supabaseAdmin
+        .from('shipments')
+        .select('id, awb_code, label_url')
+        .eq('pitch_id', pitchId)
+        .eq('type', 'SAMPLE')
+        .not('awb_code', 'is', null)
+        .maybeSingle();
+
+      if (existingWithAwb) {
+        throw ApiError.badRequest('A sample shipment with an AWB already exists. Use "Retry Docs" from the Shipments page instead.');
+      }
+
+      // Remove any stale no-AWB record so createSampleShipment can insert fresh
+      await supabaseAdmin
+        .from('shipments')
+        .delete()
+        .eq('pitch_id', pitchId)
+        .eq('type', 'SAMPLE');
+
+      // Brand address
+      const { data: brandAddr } = await supabaseAdmin
+        .from('addresses')
+        .select('full_name, phone_number, address_line1, address_line2, city, state, postal_code, country')
+        .eq('user_id', brandId)
+        .eq('is_default_shipping', true)
+        .maybeSingle();
+
+      // Expert warehouse address, fall back to default shipping
+      let expertAddr: Record<string, unknown> | null = null;
+      const { data: wh } = await supabaseAdmin
+        .from('addresses')
+        .select('full_name, phone_number, address_line1, address_line2, city, state, postal_code, country')
+        .eq('user_id', expertId)
+        .eq('is_warehouse', true)
+        .maybeSingle();
+      if (wh) {
+        expertAddr = wh as unknown as Record<string, unknown>;
+      } else {
+        const { data: def } = await supabaseAdmin
+          .from('addresses')
+          .select('full_name, phone_number, address_line1, address_line2, city, state, postal_code, country')
+          .eq('user_id', expertId)
+          .eq('is_default_shipping', true)
+          .maybeSingle();
+        expertAddr = def as unknown as Record<string, unknown> | null;
+      }
+
+      const fromAddress: Record<string, unknown> = brandAddr
+        ? {
+            name:       (brandAddr as any).full_name,
+            phone:      (brandAddr as any).phone_number,
+            line1:      (brandAddr as any).address_line1,
+            line2:      (brandAddr as any).address_line2 ?? '',
+            city:       (brandAddr as any).city,
+            state:      (brandAddr as any).state,
+            postalCode: (brandAddr as any).postal_code,
+            country:    (brandAddr as any).country,
+          }
+        : { note: 'Brand warehouse' };
+
+      const toAddress: Record<string, unknown> = expertAddr
+        ? {
+            name:       (expertAddr as any).full_name,
+            phone:      (expertAddr as any).phone_number,
+            line1:      (expertAddr as any).address_line1,
+            line2:      (expertAddr as any).address_line2 ?? '',
+            city:       (expertAddr as any).city,
+            state:      (expertAddr as any).state,
+            postalCode: (expertAddr as any).postal_code,
+            country:    (expertAddr as any).country,
+          }
+        : { note: 'Expert warehouse' };
+
+      // Sync pickup location; fall back to "Primary"
+      await brandService.syncPickupLocation(brandId).catch(() => {});
+      const { data: brandPickupData } = await supabaseAdmin
+        .from('brand_details')
+        .select('shiprocket_pickup_location')
+        .eq('id', brandId)
+        .maybeSingle();
+      const pickupLocation = (brandPickupData as any)?.shiprocket_pickup_location ?? 'Primary';
+
+      const shipment = await logisticsService.createSampleShipment({ pitchId, fromAddress, toAddress, pickupLocation });
+      logger.info('Admin manually created sample shipment', { pitchId, shipmentId: shipment.id });
+      sendSuccess(res, shipment, 201, 'Sample shipment created successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * GET /admin/pitches
    * List all pitches with brand/expert/product/community info.
    */

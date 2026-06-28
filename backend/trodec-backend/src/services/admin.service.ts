@@ -420,7 +420,8 @@ class AdminService {
         brand:brand_id (id, brand_name, logo_url),
         expert:expert_id (id, full_name, email),
         product:product_id (id, name, slug),
-        community:community_id (id, name, slug)
+        community:community_id (id, name, slug),
+        shipments(id, status, type, label_url, awb_code, created_at)
       `, { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
@@ -436,8 +437,16 @@ class AdminService {
       throw ApiError.internal('Failed to fetch pitches');
     }
 
+    // Attach the most recent SAMPLE shipment per pitch as a convenience field
+    const rows = (data || []).map((row: any) => {
+      const sampleShipment = (row.shipments ?? [])
+        .filter((s: any) => s.type === 'SAMPLE')
+        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0] ?? null;
+      return { ...row, sample_shipment: sampleShipment };
+    });
+
     return {
-      data: data || [],
+      data: rows,
       pagination: { page, limit, total: count || 0 },
     };
   }

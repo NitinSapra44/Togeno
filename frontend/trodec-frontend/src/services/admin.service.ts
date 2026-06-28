@@ -275,6 +275,14 @@ export async function adminUpdateOrderStatus(orderId: string, status: string): P
   }
 }
 
+export interface AdminPitchSampleShipment {
+  id: string;
+  status: string;
+  type: string;
+  label_url: string | null;
+  awb_code: string | null;
+}
+
 export interface AdminPitchRow {
   id: string;
   status: string;
@@ -286,6 +294,7 @@ export interface AdminPitchRow {
   expert: { id: string; full_name: string; email: string } | null;
   product: { id: string; name: string; slug: string } | null;
   community: { id: string; name: string; slug: string } | null;
+  sample_shipment: AdminPitchSampleShipment | null;
 }
 
 export interface AdminShipmentRow {
@@ -362,6 +371,17 @@ export async function uploadShipmentLabel(shipmentId: string, file: File): Promi
       `/admin/shipments/${shipmentId}/upload-label`,
       formData,
       { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return res.data.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
+}
+
+export async function adminCreateSampleShipmentForPitch(pitchId: string): Promise<{ id: string; awb_code: string | null; label_url: string | null }> {
+  try {
+    const res = await api.post<ApiSuccessResponse<{ id: string; awb_code: string | null; label_url: string | null }>>(
+      `/admin/pitches/${pitchId}/create-sample-shipment`
     );
     return res.data.data;
   } catch (error) {
