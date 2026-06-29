@@ -296,7 +296,6 @@ class AdminController {
             country:    (addr as any).country,
           };
         }
-        await brandService.syncPickupLocation(brandId).catch(() => {});
         pickupLocation = await shiprocketClient.getBrandPickupLocation(brandId);
       }
 
@@ -413,8 +412,7 @@ class AdminController {
           }
         : { note: 'Expert warehouse' };
 
-      // Sync pickup location; fall back to "Primary"
-      await brandService.syncPickupLocation(brandId).catch(() => {});
+      // Read pickup location from DB (admin assigns it via the Brands panel)
       const { data: brandPickupData } = await supabaseAdmin
         .from('brand_details')
         .select('shiprocket_pickup_location')

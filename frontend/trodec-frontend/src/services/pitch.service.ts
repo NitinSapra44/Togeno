@@ -10,7 +10,7 @@ export interface Pitch {
   productId: string;
   communityId: string;
   expertId: string;
-  status: 'pending' | 'accepted' | 'rejected' | 'shipped' | 'delivered' | 'posted' | 'completed' | 'cancelled' | 'expired';
+  status: 'pending' | 'accepted' | 'declined' | 'shipped' | 'delivered' | 'posted' | 'completed' | 'cancelled' | 'expired';
   message: string | null;
   offerDetails: string | null;
   requirements: string | null;
@@ -283,7 +283,7 @@ export function getPitchStatusColor(status: Pitch['status']): string {
   const colors: Record<Pitch['status'], string> = {
     pending: 'bg-yellow-100 text-yellow-800',
     accepted: 'bg-green-100 text-green-800',
-    rejected: 'bg-red-100 text-red-800',
+    declined: 'bg-red-100 text-red-800',
     shipped: 'bg-blue-100 text-blue-800',
     delivered: 'bg-amber-100 text-amber-800',
     posted: 'bg-purple-100 text-purple-800',
@@ -301,7 +301,7 @@ export function getPitchStatusLabel(status: Pitch['status']): string {
   const labels: Record<Pitch['status'], string> = {
     pending: 'Pending',
     accepted: 'Accepted',
-    rejected: 'Rejected',
+    declined: 'Declined',
     shipped: 'Shipped',
     delivered: 'Delivered',
     posted: 'Posted',

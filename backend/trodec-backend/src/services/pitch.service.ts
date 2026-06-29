@@ -2,7 +2,6 @@ import { supabaseAdmin } from "../config";
 import { ApiError } from "../utils";
 import { logger } from "../utils/logger";
 import { logisticsService } from "./logistics.service";
-import { brandService } from "./brand.service";
 
 // Pitch status type
 export type PitchStatus =
@@ -604,9 +603,7 @@ class PitchService {
             }
           : { address: updatedPitch.shippingAddress ?? "Expert address on file" };
 
-        await brandService.syncPickupLocation(updatedPitch.brandId).catch(() => {});
-        // Read pickup location directly from DB — if sync failed (brand has no address),
-        // fall back to "Primary" (the Shiprocket default) instead of an unregistered derived name.
+        // Read pickup location directly from DB (admin assigns it via the Brands panel).
         const { data: brandPickupData } = await supabaseAdmin
           .from("brand_details")
           .select("shiprocket_pickup_location")

@@ -109,7 +109,7 @@ export default function BrandPitchesPage() {
       {/* Filters & Search */}
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-2 border-b border-[#1f1f1f] pb-4 overflow-x-auto">
-          {["all", "pending", "accepted", "rejected"].map((status) => (
+          {["all", "pending", "accepted", "declined", "shipped", "delivered", "posted", "completed"].map((status) => (
             <button
               key={status}
               onClick={() => setStatusFilter(status)}

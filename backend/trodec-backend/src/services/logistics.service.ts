@@ -819,9 +819,8 @@ class ShiprocketClient {
       return location;
     }
 
-    const derivedName = `trodec-brand-${brandId.replace(/-/g, "").slice(0, 12)}`;
-    logger.warn("Brand has no Shiprocket pickup location in DB, using derived name", { brandId, derivedName });
-    return derivedName;
+    logger.warn("Brand has no Shiprocket pickup location in DB, falling back to Primary", { brandId });
+    return "Primary";
   }
 
   async cancelOrder(shiprocketOrderIds: string[]): Promise<void> {
@@ -1413,10 +1412,6 @@ class LogisticsService {
           .single();
 
         const brandId = (pitchData as any)?.brand_id as string | undefined;
-        if (brandId) {
-          const { brandService } = await import("./brand.service");
-          await brandService.syncPickupLocation(brandId).catch(() => {});
-        }
         const pickupLocation = brandId
           ? await shiprocketClient.getBrandPickupLocation(brandId).catch(() => "Primary")
           : "Primary";
