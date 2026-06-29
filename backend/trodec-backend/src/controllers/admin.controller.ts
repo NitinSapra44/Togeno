@@ -436,7 +436,10 @@ class AdminController {
    */
   async getShiprocketPickupLocations(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const locations = await shiprocketClient.getPickupLocations();
+      const locations = await shiprocketClient.getPickupLocations().catch((err: unknown) => {
+        logger.warn('Failed to fetch Shiprocket pickup locations', { err: (err as any)?.message });
+        return [] as Array<{ name: string; city: string; status: number }>;
+      });
       sendSuccess(res, locations);
     } catch (error) {
       next(error);

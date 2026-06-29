@@ -38,6 +38,7 @@ export default function AdminBrandsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [shiprocketLocations, setShiprocketLocations] = useState<ShiprocketLocation[]>([]);
+  const [locationsLoaded, setLocationsLoaded] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<Record<string, string>>({});
   const [assigningId, setAssigningId] = useState<string | null>(null);
 
@@ -71,8 +72,8 @@ export default function AdminBrandsPage() {
 
   useEffect(() => {
     getAdminShiprocketLocations()
-      .then(setShiprocketLocations)
-      .catch(() => toast.error("Could not load Shiprocket locations"));
+      .then((locs) => { setShiprocketLocations(locs); setLocationsLoaded(true); })
+      .catch(() => { setLocationsLoaded(true); });
   }, []);
 
   async function handleVerify(userId: string, approved: boolean) {
@@ -162,9 +163,11 @@ export default function AdminBrandsPage() {
           ))}
         </div>
         <div className="flex items-center gap-3">
-          {activeLocations.length > 0 && (
+          {locationsLoaded && (
             <span className="text-xs text-zinc-500">
-              {activeLocations.length} active Shiprocket location{activeLocations.length !== 1 ? "s" : ""}
+              {activeLocations.length > 0
+                ? `${activeLocations.length} active Shiprocket location${activeLocations.length !== 1 ? "s" : ""}`
+                : "Shiprocket locations unavailable — enter name manually"}
             </span>
           )}
           <div className="relative w-full sm:w-64">
@@ -319,22 +322,32 @@ export default function AdminBrandsPage() {
                       {currentPickup}
                     </span>
                   )}
-                  {activeLocations.length === 0 ? (
-                    <span className="text-xs text-zinc-600 italic">No Shiprocket locations available</span>
+                  {!locationsLoaded ? (
+                    <span className="text-xs text-zinc-600 italic">Loading…</span>
                   ) : (
                     <div className="flex items-center gap-2 flex-1">
-                      <select
-                        value={pickedValue}
-                        onChange={(e) => setSelectedLocation((prev) => ({ ...prev, [row.id]: e.target.value }))}
-                        className="flex-1 min-w-0 px-2 py-1 text-xs bg-[#0b0b0b] border border-[#2a2a2a] rounded text-white focus:outline-none focus:border-zinc-600"
-                      >
-                        <option value="">— select location —</option>
-                        {activeLocations.map((l) => (
-                          <option key={l.name} value={l.name}>
-                            {l.name} ({l.city})
-                          </option>
-                        ))}
-                      </select>
+                      {activeLocations.length > 0 ? (
+                        <select
+                          value={pickedValue}
+                          onChange={(e) => setSelectedLocation((prev) => ({ ...prev, [row.id]: e.target.value }))}
+                          className="flex-1 min-w-0 px-2 py-1 text-xs bg-[#0b0b0b] border border-[#2a2a2a] rounded text-white focus:outline-none focus:border-zinc-600"
+                        >
+                          <option value="">— select location —</option>
+                          {activeLocations.map((l) => (
+                            <option key={l.name} value={l.name}>
+                              {l.name} ({l.city})
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={pickedValue}
+                          onChange={(e) => setSelectedLocation((prev) => ({ ...prev, [row.id]: e.target.value }))}
+                          placeholder="Enter Shiprocket location name"
+                          className="flex-1 min-w-0 px-2 py-1 text-xs bg-[#0b0b0b] border border-[#2a2a2a] rounded text-white focus:outline-none focus:border-zinc-600 placeholder-zinc-600"
+                        />
+                      )}
                       <button
                         onClick={() => handleAssignPickup(row.id)}
                         disabled={!isDirty || isAssigning}
