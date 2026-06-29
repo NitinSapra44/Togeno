@@ -152,6 +152,9 @@ const SHIPROCKET_BASE = "https://apiv2.shiprocket.in/v1/external";
 // Shiprocket tokens are valid for ~10 days; refresh one day early
 const TOKEN_TTL_MS = 9 * 24 * 60 * 60 * 1000;
 
+const SUPABASE_TOKEN_KEY    = "shiprocket_token";
+const SUPABASE_EXPIRY_KEY   = "shiprocket_token_expiry";
+
 class ShiprocketClient {
   private token: string | null = null;
   private tokenExpiry: number = 0;
@@ -162,7 +165,42 @@ class ShiprocketClient {
   private static readonly LOGIN_COOLDOWN_MS     = 15 * 60_000;       // 15 min
   private static readonly ACCOUNT_LOCKED_MS     =  3 * 60 * 60_000;  // 3 hr
 
+  // Load a previously-saved token from Supabase so server restarts don't need a new login.
+  private async _loadPersistedToken(): Promise<void> {
+    try {
+      const [tokenRow, expiryRow] = await Promise.all([
+        supabaseAdmin.from("app_settings").select("value").eq("key", SUPABASE_TOKEN_KEY).maybeSingle(),
+        supabaseAdmin.from("app_settings").select("value").eq("key", SUPABASE_EXPIRY_KEY).maybeSingle(),
+      ]);
+      const savedToken  = (tokenRow.data as any)?.value as string | null;
+      const savedExpiry = parseInt((expiryRow.data as any)?.value ?? "0", 10);
+      if (savedToken && savedExpiry > Date.now() + 60_000) {
+        this.token       = savedToken;
+        this.tokenExpiry = savedExpiry;
+        logger.info("Shiprocket token loaded from Supabase cache");
+      }
+    } catch (err) {
+      logger.warn("Could not load Shiprocket token from Supabase", { err });
+    }
+  }
+
+  private async _persistToken(token: string, expiry: number): Promise<void> {
+    try {
+      await Promise.all([
+        supabaseAdmin.from("app_settings").upsert({ key: SUPABASE_TOKEN_KEY,  value: token,          updated_at: new Date().toISOString() }),
+        supabaseAdmin.from("app_settings").upsert({ key: SUPABASE_EXPIRY_KEY, value: String(expiry), updated_at: new Date().toISOString() }),
+      ]);
+    } catch (err) {
+      logger.warn("Could not persist Shiprocket token to Supabase", { err });
+    }
+  }
+
   private async getToken(forceRefresh = false): Promise<string> {
+    // On very first call, try to load a persisted token before hitting Shiprocket.
+    if (!this.token && !forceRefresh) {
+      await this._loadPersistedToken();
+    }
+
     if (!forceRefresh && this.token && Date.now() < this.tokenExpiry) {
       return this.token;
     }
@@ -226,6 +264,8 @@ class ShiprocketClient {
     this.token = json.token;
     this.tokenExpiry = Date.now() + TOKEN_TTL_MS;
     logger.info("Shiprocket token refreshed successfully");
+    // Persist so the next server restart doesn't need a new login.
+    void this._persistToken(this.token, this.tokenExpiry);
     return this.token;
   }
 
