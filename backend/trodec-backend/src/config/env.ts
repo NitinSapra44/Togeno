@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
 
-dotenv.config();
+// Only load .env file in local development — on production (Hostinger),
+// env vars are injected by the platform and dotenv file-parsing can
+// mangle special characters like ! and % by adding backslash escapes.
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config();
+}
 
 const envSchema = z.object({
   // Server
